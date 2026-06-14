@@ -1,0 +1,380 @@
+\documentclass[11pt,a4paper, titlepage=false]{scrreprt}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[english]{babel}
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{cite}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage{breakurl}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[
+  left=2.5cm,
+  right=2.5cm,
+  top=3cm,
+  bottom=3cm,
+]{geometry}
+
+\hypersetup{
+    pdfauthor  ={Muhammad Sawaiz Naveed},
+    pdftitle   ={LLM-Driven Verilog Testbench Generation with Pyverilog-Based Early Error Localization},
+    pdfsubject ={S6.ReKI.1 Research Project},
+    pdfkeywords={LLM, Verilog, testbench generation, Pyverilog, error localization, hardware verification, LangGraph}
+}
+
+\usepackage{listings}
+\DeclareOldFontCommand{\bf}{\normalfont\bfseries}{\mathbf}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                                   Document
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+\selectlanguage{english}
+\title{LLM-Driven Verilog Testbench Generation\\with Pyverilog-Based Early Error Localization}
+\author{Muhammad Sawaiz Naveed}
+\date{\today}
+\maketitle
+\vspace{1cm}
+
+\begin{tabular}{r l}
+Type of work: & Research Project \\
+Student:      & Muhammad Sawaiz Naveed \\
+Supervisor:   & Bing Wen (\href{mailto:wen.bing@tu-ilmenau.de}{wen.bing@tu-ilmenau.de}) \\
+Topic ID:     & S6.ReKI.1 \\
+Department:   & Technische Universität Ilmenau \\
+Semester:     & Summer Semester 2025/2026 \\
+Deadline:     & September 1, 2026 \\
+\end{tabular}
+
+\vspace{3mm}
+
+\begin{tabular}{l p{0.75\textwidth}}
+\\
+\textbf{Keywords:} & Large Language Models; Verilog; Testbench Generation; Pyverilog; Error Localization; Hardware Verification; LangGraph \\
+\end{tabular}
+
+\vspace{8mm}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section*{Motivation}
+
+The increasing complexity of digital hardware systems has made verification one of the most
+resource-intensive phases of the design process. According to industry studies, verification
+tasks alone can consume up to 60\% of the total engineering effort in modern IC
+projects~\cite{wilson2022}, and a substantial share of that effort goes into writing and
+maintaining testbenches. Large Language Models (LLMs) have recently demonstrated promising
+capabilities in generating Hardware Description Language (HDL) artefacts --- both design
+RTL~\cite{liu2023verilogeval,thakur2023autochip} and, more recently, complete
+testbenches~\cite{qiu2024autobench} --- directly from natural-language descriptions. This
+raises the prospect of significantly accelerating the hardware verification flow through
+automation.
+
+However, LLM-generated Verilog is fundamentally unreliable. Verilog demands strict adherence to
+parallel semantics, clock-domain discipline, synthesizability constraints, and precise signal
+timing. LLMs, trained predominantly on sequential software code, frequently produce code that
+is \emph{syntactically valid} yet \emph{functionally wrong}: the simulator compiles the code
+without errors while the underlying behaviour is incorrect. In the testbench setting, common
+failure patterns include wrong port bindings between the testbench driver and the
+Device-Under-Test (DUT), incorrect or missing \texttt{\$fdisplay} statements that prevent the
+checker from observing outputs, mismatched bit widths between stimulus and DUT ports, wrong
+sensitivity lists in clocked drivers, and incomplete or off-by-one scenario coverage.
+
+The conventional remedy is to run the LLM output and inspect the simulation result. While
+effective, this is a slow feedback loop: the testbench must compile, the DUT must be
+instantiated correctly, and the run must complete before any feedback is available. Recent work
+such as AutoBench~\cite{qiu2024autobench} shows that a multi-stage LLM pipeline can substantially
+improve testbench pass rates, but it still relies almost exclusively on the compiler and the
+final simulation output to detect problems. What is missing is a \emph{lightweight, pre-simulation
+analysis layer} that can inspect the generated testbench (and its interaction with the DUT),
+localise common functional errors immediately, and feed structured, signal-level guidance back
+to the LLM --- without depending on a full simulation run inside every repair iteration.
+
+This project addresses that gap. By embedding Pyverilog's static-analysis capabilities (AST
+parsing, dataflow tracing, port-binding and sensitivity-list checks) inside a graph-based LLM
+workflow, we aim to generate Verilog testbenches that are more robust by construction, and to
+localise and repair the residual errors \emph{early}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section*{Task Description}
+
+The goal of this project is to design, implement, and evaluate a \emph{graph-based LLM workflow
+for Verilog testbench generation} that integrates Pyverilog-based early error localisation as
+a first-class node in the pipeline. The pipeline takes a natural-language circuit description
+and a golden DUT as input and produces a working testbench, together with a structured trace of
+every node executed and every error localised and repaired along the way.
+
+The focus of the work is on the \emph{pipeline architecture and its error-handling behaviour},
+rather than on achieving the highest possible benchmark score. The objective is a clean,
+reproducible, graph-based design in which each stage --- generation, static analysis, error
+reasoning, repair, and evaluation --- is an explicit node with logged inputs and outputs.
+
+\medskip
+\noindent The project pursues the following research questions:
+
+\begin{enumerate}[label=\textbf{RQ\arabic*.}, leftmargin=*, itemsep=4pt]
+
+    \item \textit{What categories of functional errors appear most frequently in LLM-generated
+    Verilog testbenches, and which of these are detectable without full simulation?}
+
+    \item \textit{To what extent can Pyverilog's AST and dataflow analysis (port bindings,
+    sensitivity lists, dataflow consistency between testbench and DUT) narrow down testbench
+    errors prior to simulation?}
+
+    \item \textit{Can an LLM, informed by Pyverilog analysis results, effectively localise and
+    repair testbench errors, and how does this compare to using only compiler/simulator feedback
+    as in prior work?}
+
+    \item \textit{What is the cost--quality tradeoff of combining lightweight static analysis
+    with LLM reasoning versus relying solely on compiler and simulation feedback for repair?}
+
+\end{enumerate}
+
+\medskip
+\noindent The concrete outcomes of the project are:
+
+\begin{itemize}
+    \item A \textbf{LangGraph-based testbench generation pipeline} with explicit nodes for
+    circuit classification, specification extraction, scenario generation, driver/checker
+    generation, Pyverilog static analysis, LLM error reasoning, deterministic standardisation,
+    and Icarus Verilog evaluation.
+
+    \item A \textbf{reusable Pyverilog analysis module} that converts AST and dataflow outputs
+    into structured, LLM-readable error summaries focused on testbench-DUT interaction
+    (port-binding mismatches, undriven signals, sensitivity-list errors, missing observation
+    statements).
+
+    \item A \textbf{deterministic Python standardiser} for sequential testbenches that inserts
+    missing \texttt{\$fdisplay} statements and normalises clocking, replacing the fragile
+    LLM-based standardisation step used in prior work~\cite{qiu2024autobench}.
+
+    \item A \textbf{categorised error taxonomy} of testbench errors observed during the study,
+    annotated with frequency and Pyverilog detectability.
+
+    \item An \textbf{empirical comparison} of three feedback strategies for the repair loop ---
+    compiler/simulator-only, Pyverilog-only, and a hybrid Pyverilog~+~LLM reasoner --- across
+    combinational and sequential designs, with per-stage failure attribution made possible by
+    the LangGraph logging layer.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section*{Scientific Approach}
+
+\subsection*{Sources and Related Work}
+
+The project builds on the following bodies of work:
+
+\begin{itemize}
+    \item \textbf{LLM-based Verilog generation:} VerilogEval~\cite{liu2023verilogeval} provides
+    the standard benchmark (156 Verilog problems from HDLBits); AutoChip~\cite{thakur2023autochip}
+    and ChipGPT~\cite{chang2023chipgpt} demonstrate LLM-driven RTL generation pipelines.
+
+    \item \textbf{Testbench and verification automation:} AutoBench~\cite{qiu2024autobench}
+    introduces a multi-stage LLM pipeline for testbench generation, achieving a 57\% improvement
+    in pass rate over direct LLM prompting. Its self-enhancement loop (scenario checking,
+    auto-debug, reboot) informs our repair loop design.
+
+    \item \textbf{Pyverilog:}~\cite{takamaeda2015pyverilog} provides the AST parser, dataflow
+    analyser, and control-flow analyser used for static analysis of Verilog code.
+
+    \item \textbf{LLMs for formal and functional verification:}~\cite{orenes2023llmformal}
+    and~\cite{zhang2023llm4dv} explore LLM-assisted formal verification and hardware test
+    stimulus generation, providing context for the broader verification landscape.
+\end{itemize}
+
+The primary dataset is the public VerilogEval benchmark~\cite{liu2023verilogeval} (156 problems
+from HDLBits), which provides natural-language descriptions, golden RTL, and reference
+testbenches in a uniform format. A development split (20\%) is used for prompt tuning and
+error-taxonomy bootstrapping; the held-out split (80\%) is reserved for final evaluation. If
+the supervisor provides an additional dataset, it is added on top of this baseline.
+
+\subsection*{Methods and Implementation}
+
+The pipeline is structured as a LangGraph state machine with six explicit stages. The accent of
+the work is on the \emph{shape} of the graph (nodes, edges, conditional transitions, repair
+loop) rather than on raw benchmark numbers.
+
+\begin{enumerate}[itemsep=3pt]
+    \item \textbf{Multi-stage Testbench Generation.} The LLM produces the testbench in small,
+    auditable steps rather than one shot: (a) classify the DUT as combinational or sequential;
+    (b) extract a structured JSON specification of ports, behaviour, and timing; (c) generate
+    a named scenario list; (d) generate Verilog driver code that exercises those scenarios; and
+    (e) generate a Python checker. This staged structure follows the recipe shown to work in
+    AutoBench~\cite{qiu2024autobench} and gives the static-analysis layer a well-formed object
+    to inspect.
+
+    \item \textbf{Pyverilog Static Analysis.} The generated testbench and the golden DUT are
+    parsed together. Pyverilog is used to (i) verify port bindings between the testbench
+    instantiation and the DUT signature, (ii) detect undriven inputs and unobserved outputs,
+    (iii) check sensitivity lists in sequential drivers, and (iv) confirm that
+    \texttt{\$fdisplay} (or equivalent) statements are present for every output. No simulator is
+    invoked at this stage.
+
+    \item \textbf{LLM Error Reasoning.} The structured Pyverilog report and the original
+    specification are passed to an LLM, which produces a localised error report
+    (error type, affected signal, suggested fix). Where it can, the reasoner cites the line or
+    block in the testbench that is responsible.
+
+    \item \textbf{Deterministic Standardiser.} A small Python pass walks the testbench AST and
+    inserts missing \texttt{\$fdisplay} statements and normalises clocking conventions. This
+    replaces the LLM-based standardisation step in prior work, which is fragile on a mechanical
+    transformation~\cite{qiu2024autobench}.
+
+    \item \textbf{Repair Loop.} If errors remain, the error report is fed back to the
+    generation node and the testbench is regenerated. The loop runs up to $N_{\max} = 3$
+    iterations; an oscillation detector breaks early if the same error report repeats. The full
+    LangGraph trace (which node produced which artefact at which iteration) is logged.
+
+    \item \textbf{Evaluation with Icarus Verilog.} The final testbench is compiled and run with
+    Icarus Verilog~\cite{blocklove2023chipchat} against the golden DUT, with three checks:
+    Eval0 (compiles), Eval1 (passes against golden RTL), and Eval2 (catches LLM-generated
+    mutants of the DUT, following AutoBench's mutant-pass protocol).
+\end{enumerate}
+
+\noindent The LangGraph state machine makes every transition explicit and logged, supporting
+reproducibility and per-node failure attribution --- which itself becomes part of the
+contribution.
+
+\medskip
+\noindent\textbf{Tooling.} Pyverilog~\cite{takamaeda2015pyverilog} is the primary static
+analyser, with a Verible fallback for files Pyverilog cannot parse. The LLM tier is the free
+Claude API (Sonnet for code generation and reasoning, Haiku for cheap classification nodes), in
+line with the project's emphasis on pipeline structure rather than maximising accuracy. All
+code-generation calls use temperature~0 for reproducibility.
+
+\subsection*{Evaluation Metrics}
+
+The primary goal of the evaluation is to characterise how each node of the pipeline contributes
+to overall behaviour, not to chase peak benchmark numbers.
+
+\begin{itemize}
+    \item \textbf{Eval0:} Testbench compilation pass rate (Icarus Verilog).
+    \item \textbf{Eval1:} Testbench passes against the golden DUT.
+    \item \textbf{Eval2:} Testbench correctly distinguishes the golden DUT from LLM-generated
+    mutants (AutoBench's mutant-pass protocol).
+    \item \textbf{Error precision / recall:} Fraction of Pyverilog-flagged errors that are real,
+    and fraction of real errors Pyverilog catches, measured against a hand-annotated dev-set
+    subset.
+    \item \textbf{Per-node failure attribution:} Distribution of failures over the six pipeline
+    stages, exposing where the pipeline is fragile.
+    \item \textbf{Iterations to pass:} Distribution of repair-loop iterations required.
+    \item \textbf{Cost per module:} LLM tokens and wall-clock time per generated testbench.
+\end{itemize}
+
+\noindent Results are reported separately for combinational (CMB) and sequential (SEQ)
+circuits, as the latter are substantially harder for LLMs~\cite{qiu2024autobench}. The
+ablation conditions exercise the value of each feedback strategy: (a) baseline (one-shot
+generation, no repair), (b) compiler/simulator-feedback-only repair, (c) Pyverilog-only repair,
+(d) LLM-reasoning-only repair, and (e) the full hybrid pipeline.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section*{Time Schedule}
+
+\vspace{0.7em}
+\begin{tabular}{|c | p{0.75\textwidth}|}
+\hline
+\textbf{Time Period} & \textbf{Tasks} \\
+\hline
+Weeks 1--2 (May 2026) &
+    Literature review (AutoBench, VerilogEval, Pyverilog); dev environment setup
+    (Python, Claude API free tier, Icarus Verilog, LangGraph); Pyverilog/Verible
+    smoke test on 20 sample modules; report skeleton committed \\
+\hline
+Weeks 3--6 (May--Jun 2026) &
+    LangGraph skeleton and state schema; testbench-generation stages 1a--1c
+    (classification, spec extraction, scenario list) on combinational circuits;
+    Icarus Verilog wiring for Eval0/Eval1 \\
+\hline
+Weeks 5--9 (Jun 2026) &
+    Pyverilog static-analysis module (port-binding, sensitivity, dataflow);
+    LLM error-reasoning node; error-taxonomy bootstrap on a 30--50-module dev
+    subset; first ablation numbers \\
+\hline
+Weeks 10--13 (Jun--Jul 2026) &
+    Repair loop with oscillation detection; deterministic \texttt{\$fdisplay}
+    standardiser; sequential-circuit support; Eval2 mutant generation; full
+    pipeline integration \\
+\hline
+Weeks 14--16 (Jul--Aug 2026) &
+    Ablation experiments on the held-out test set; per-node failure attribution;
+    cost/latency analysis; complete first draft of the final report \\
+\hline
+Weeks 17--20 (Aug--Sep 2026) &
+    Supervisor feedback round; revision and proofreading; artefact preparation
+    (code, prompts, reproducibility scripts) \\
+\hline
+September 1, 2026 & \textbf{Submission of final report (PDF upload).} \\
+\hline
+\end{tabular}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\vspace{5mm}
+\section*{References}
+{\small
+\begingroup
+\let\chapter\section
+\bibliographystyle{ieeetr}
+
+\begin{thebibliography}{9}
+
+\bibitem{wilson2022}
+H.~Foster,
+``The 2022 Wilson Research Group Functional Verification Study,''
+Siemens, Tech. Rep., Dec. 2022.
+\url{https://blogs.sw.siemens.com/verificationhorizons/2022/12/12/part-8-the-2022-wilson-research-group-functional-verification-study/}
+
+\bibitem{liu2023verilogeval}
+M.~Liu, N.~Pinckney, B.~Khailany, and H.~Ren,
+``VerilogEval: Evaluating Large Language Models for Verilog Code Generation,''
+in \textit{Proc. IEEE/ACM Int. Conf. Computer-Aided Design (ICCAD)}, 2023.
+
+\bibitem{qiu2024autobench}
+R.~Qiu, G.~L.~Zhang, R.~Drechsler, U.~Schlichtmann, and B.~Li,
+``AutoBench: Automatic Testbench Generation and Evaluation Using LLMs for HDL Design,''
+in \textit{Proc. ACM/IEEE Int. Symp. Machine Learning for CAD (MLCAD)}, 2024.
+arXiv:2407.03891.
+
+\bibitem{takamaeda2015pyverilog}
+S.~Takamaeda-Yamazaki,
+``Pyverilog: A Python-Based Hardware Design Processing Toolkit for Verilog HDL,''
+in \textit{Applied Reconfigurable Computing (ARC)}, 2015.
+
+\bibitem{thakur2023autochip}
+S.~Thakur, J.~Blocklove, H.~Pearce, B.~Tan, S.~Garg, and R.~Karri,
+``AutoChip: Automating HDL Generation Using LLM Feedback,''
+arXiv:2311.04887, 2023.
+
+\bibitem{blocklove2023chipchat}
+J.~Blocklove, S.~Garg, R.~Karri, and H.~Pearce,
+``Chip-Chat: Challenges and Opportunities in Conversational Hardware Design,''
+in \textit{Proc. ACM/IEEE Int. Symp. Machine Learning for CAD (MLCAD)}, 2023.
+
+\bibitem{chang2023chipgpt}
+K.~Chang, Y.~Wang, H.~Ren, M.~Wang, S.~Liang, Y.~Han, H.~Li, and X.~Li,
+``ChipGPT: How Far Are We From Natural Language Hardware Design,''
+arXiv:2305.14019, 2023.
+
+\bibitem{orenes2023llmformal}
+M.~Orenes-Vera, M.~Martonosi, and D.~Wentzlaff,
+``Using LLMs to Facilitate Formal Verification of RTL,''
+arXiv:2309.09437, 2023.
+
+\bibitem{zhang2023llm4dv}
+Z.~Zhang, G.~Chadwick, H.~McNally, Y.~Zhao, and R.~Mullins,
+``LLM4DV: Using Large Language Models for Hardware Test Stimuli Generation,''
+arXiv:2310.04535, 2023.
+
+\end{thebibliography}
+
+\endgroup
+}
+\end{document}

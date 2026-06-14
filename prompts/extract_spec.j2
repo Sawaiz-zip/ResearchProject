@@ -1,0 +1,25 @@
+{# Variables: nl_description, golden_dut, module_name #}
+You are a hardware verification expert. Extract a structured specification from the circuit description and DUT below.
+
+Module name: {{ module_name }}
+
+Natural language description:
+{{ nl_description }}
+
+Golden DUT Verilog:
+```verilog
+{{ golden_dut }}
+```
+
+Respond with ONLY a JSON object in this exact format:
+{
+  "ports": {
+    "inputs":  [{"name": "<name>", "width": <int>, "description": "<what it does>"}],
+    "outputs": [{"name": "<name>", "width": <int>, "description": "<what it does>"}],
+    "clock":   "<clock_port_name_or_null>",
+    "reset":   "<reset_port_name_or_null>"
+  },
+  "behaviour": "<one paragraph describing what the circuit does>",
+  "timing": "<synchronous|combinational>",
+  "edge": "<posedge|negedge|null>"
+}

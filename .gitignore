@@ -1,0 +1,31 @@
+# Environment
+.env
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+.uv/
+
+# Results (large, git-ignored; check in summary.json manually if needed)
+results/
+!results/.gitkeep
+
+# Data (download separately)
+data/verilog_eval/
+!data/verilog_eval/.gitkeep
+
+# Build
+dist/
+*.egg-info/
+.hatch/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store
+
+# Spec-kit agent context (may contain local paths / tokens)
+.claude/

@@ -1,0 +1,20 @@
+{# Variables: spec, scenarios, module_name #}
+You are a hardware verification expert. Write a Python script that reads Verilog simulation output and checks correctness.
+
+Module: {{ module_name }}
+
+Specification:
+{{ spec | tojson(indent=2) }}
+
+Test scenarios:
+{{ scenarios | tojson(indent=2) }}
+
+The simulation output (from $fdisplay) will be in a file called TBout.txt, one line per scenario result.
+
+Requirements:
+- Read TBout.txt line by line
+- For each scenario, check the output matches the expected value
+- Print PASS or FAIL per scenario with a reason
+- Exit with code 0 if all pass, 1 if any fail
+
+Respond with ONLY the Python code, no explanation, no markdown fences.

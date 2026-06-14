@@ -1,0 +1,18 @@
+{# Variables: golden_dut, module_name #}
+You are a hardware design expert. Introduce a single subtle bug into the Verilog module below.
+
+Module: {{ module_name }}
+
+Original (correct) Verilog:
+```verilog
+{{ golden_dut }}
+```
+
+Rules:
+- Change EXACTLY ONE line of logic (not comments, not port declarations)
+- The bug must be subtle: flip one operator, invert one signal, change one constant, swap two signals
+- The module must still compile with iverilog
+- Do NOT add or remove ports
+- Do NOT change the module name
+
+Respond with ONLY the modified Verilog code, no explanation, no markdown fences.

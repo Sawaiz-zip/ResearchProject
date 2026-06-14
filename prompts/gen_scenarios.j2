@@ -1,0 +1,21 @@
+{# Variables: spec, module_name #}
+You are a hardware verification expert. Generate a list of named test scenarios for the following circuit.
+
+Module: {{ module_name }}
+Specification:
+{{ spec | tojson(indent=2) }}
+
+Each scenario must be independently testable and cover a distinct behaviour.
+Include: normal cases, boundary cases, and at least one error/edge case.
+
+Respond with ONLY a JSON array:
+[
+  {
+    "name": "<short_scenario_name>",
+    "description": "<what this scenario tests>",
+    "inputs": {"<port>": <value_or_sequence>},
+    "expected": {"<port>": <value_or_sequence>}
+  }
+]
+
+Generate between 5 and 10 scenarios.

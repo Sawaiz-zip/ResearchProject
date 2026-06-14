@@ -1,0 +1,26 @@
+{# Variables: pyverilog_report, spec, driver_rtl #}
+You are a hardware verification expert. Analyse the static analysis report below and produce a structured list of actionable errors.
+
+Specification (for reference):
+{{ spec | tojson(indent=2) }}
+
+Pyverilog static analysis report:
+{{ pyverilog_report | tojson(indent=2) }}
+
+Testbench under analysis:
+```verilog
+{{ driver_rtl }}
+```
+
+For each error in the report, provide an actionable item. Respond with ONLY a JSON array:
+[
+  {
+    "error_type": "<from: port_binding_mismatch | undriven_input | unobserved_output | width_mismatch | sensitivity_list_error | missing_fdisplay>",
+    "affected_signal": "<signal name>",
+    "line": <line number or null>,
+    "suggested_fix": "<concrete one-sentence fix instruction>",
+    "severity": "<ERROR | WARNING | INFO>"
+  }
+]
+
+If there are no errors, respond with an empty array: []

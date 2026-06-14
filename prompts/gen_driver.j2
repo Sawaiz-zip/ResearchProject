@@ -1,0 +1,30 @@
+{# Variables: spec, scenarios, module_name, golden_dut, error_report (optional, for repair) #}
+You are a hardware verification expert. Write a Verilog testbench driver for the module below.
+
+Module: {{ module_name }}
+
+Specification:
+{{ spec | tojson(indent=2) }}
+
+Test scenarios to cover:
+{{ scenarios | tojson(indent=2) }}
+
+Golden DUT (for port reference only — do not copy its logic):
+```verilog
+{{ golden_dut }}
+```
+
+{% if error_report %}
+IMPORTANT — Previous version had these errors. Fix all of them:
+{{ error_report | tojson(indent=2) }}
+{% endif %}
+
+Requirements:
+- Instantiate the DUT with the exact port names from the specification
+- Drive every input port; observe every output port
+- Use $display or $fdisplay to print results for each scenario
+- End with $finish
+- For sequential circuits: use posedge clock; apply inputs after posedge; sample outputs before next posedge
+- Do NOT include the DUT module definition — only the testbench
+
+Respond with ONLY the Verilog code, no explanation, no markdown fences.

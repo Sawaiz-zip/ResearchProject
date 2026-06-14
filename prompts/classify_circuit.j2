@@ -1,0 +1,15 @@
+You are a hardware design expert. Classify the following Verilog circuit as either combinational (CMB) or sequential (SEQ).
+
+A circuit is SEQUENTIAL if it contains clocked flip-flops, registers, or any `always @(posedge ...)` or `always @(negedge ...)` blocks.
+A circuit is COMBINATIONAL if it has no clocked elements — outputs depend only on current inputs.
+
+Natural language description:
+{{ nl_description }}
+
+Golden DUT Verilog:
+```verilog
+{{ golden_dut }}
+```
+
+Respond with ONLY a JSON object, no explanation:
+{"circuit_type": "CMB"} or {"circuit_type": "SEQ"}

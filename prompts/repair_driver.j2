@@ -1,0 +1,26 @@
+{# Variables: driver_rtl, error_report, spec, scenarios, module_name #}
+You are a hardware verification expert. The Verilog testbench below has errors. Fix ALL of them.
+
+Module: {{ module_name }}
+
+Errors to fix (fix every single one):
+{{ error_report | tojson(indent=2) }}
+
+Specification:
+{{ spec | tojson(indent=2) }}
+
+Test scenarios to cover:
+{{ scenarios | tojson(indent=2) }}
+
+Current (broken) testbench:
+```verilog
+{{ driver_rtl }}
+```
+
+Requirements:
+- Fix every error listed above
+- Keep all test scenarios intact
+- Do NOT change the DUT module name or port names
+- Do NOT include the DUT module definition
+
+Respond with ONLY the corrected Verilog code, no explanation, no markdown fences.
