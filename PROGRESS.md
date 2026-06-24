@@ -23,6 +23,7 @@ Legend: ✅ done · 🟢 on track · 🟡 partial · 🔴 blocked · ⚪ not sta
 
 ## ✅ Done
 
+### Research & Design
 - AutoBench paper (arXiv:2407.03891) read in full and distilled into `CLAUDE.md` § 4
 - VerilogEval paper (arXiv:2309.07544) read — benchmark structure understood
 - Pyverilog paper read — AST/dataflow/CFG API understood
@@ -32,34 +33,48 @@ Legend: ✅ done · 🟢 on track · 🟡 partial · 🔴 blocked · ⚪ not sta
 - 4 research questions formulated; 5 contributions identified
 - Exposé (`expose.tex`) written and verified — fits professor's `scrreprt` template
 - All 9 references verified correct
+
+### Phase 0 — Setup
 - Auto-memory configured: `MEMORY.md`, `user_profile.md`, `project_details.md`
-- Full project skeleton (81 files, all nodes + prompts) pushed to GitHub
-- **Dependencies installed:** langgraph 1.2.4, anthropic 0.111, langchain-anthropic 1.4.7, pyverilog 1.3.0, jinja2 3.1.3, pytest 9.1.1, python-dotenv 1.2.2
+- Full project skeleton (all nodes + prompts) pushed to GitHub
+- **Dependencies installed:** langgraph, anthropic, pyverilog 1.3.0, jinja2, pytest, python-dotenv
 - **Icarus Verilog 13.0** installed via Homebrew
-- **VerilogEval dataset** downloaded → `data/verilog_eval/problems/` (156 problems, each with `_prompt.txt`, `_ref.sv`, `_test.sv`)
-- **Pyverilog smoke test PASSED** on 3 CMB modules (notgate, vector2, m2014_q4i) + 1 SEQ module
-  - Key finding: Verilog-2001 port style uses `vast.Ioport` wrapper — handled in `pyverilog_runner.py` notes
-  - Key finding: dataflow fails on `always @(posedge clk or posedge ar)` (async reset) → catch `FormatError`, degrade to AST-only
-  - Key finding: dataflow works on `always @(posedge clk)` with synchronous reset
-  - Verible fallback still planned for Phase 2 when even AST fails
+- **VerilogEval dataset** downloaded → `data/verilog_eval/problems/` (156 problems)
+- **Pyverilog smoke test PASSED** on 3 CMB + 1 SEQ module
+  - `vast.Ioport` wrapper discovered — handled in `_extract_ports()`
+  - Dataflow fails on async reset (`posedge clk or posedge ar`) → catch `FormatError`, AST-only fallback
+
+### Phase 1 — CMB Generation (branch: `phase-1-generation`, merged → `main`)
+- classify, extract_spec, gen_scenarios, gen_driver, gen_checker nodes — fully implemented
+- icarus.py: `compile_tb` / `simulate_tb` / `eval2` — fully implemented
+- mutant_gen.py, evaluate_node, CLI `__main__.py` — fully implemented
+- Multi-provider LLM abstraction (Anthropic > Groq/compat > OpenAI)
+- 5 CMB fixtures created and verified: alu_1bit, mux2to1, half_adder, comparator_2bit, priority_encoder
+- **Smoke test gate PASSED:** Eval0 5/5=100%, Eval1 4/5=80%, Eval2 4/4=100%
+
+### Phase 2 — Pyverilog Static Analysis (branch: `phase-2-pyverilog`)
+- `pyverilog_runner.run()` — port-binding mismatch (AST), undriven inputs, unobserved outputs, sensitivity list check, `$fdisplay` presence check
+- `verible_runner.run()` — fallback for unparseable LLM-generated Verilog
+- `pyverilog_analysis_node` — calls runner + Verible fallback; deterministic, zero LLM calls
+- `error_reasoner_node` — calls Sonnet only when report is non-clean; skips LLM (saves tokens) on clean TBs
+- **17/17 unit tests pass** (8 pyverilog_runner including 3 SEQ tests, 6 error_taxonomy, 3 config)
+- **T107 gate PASSED:** half_adder pipeline → success with Phase 2 active; error_reasoner correctly makes 0 LLM calls on clean TB
+- **T108 gate PASSED:** buggy TB with wrong port → 2 PORT_BINDING_MISMATCH errors flagged
 
 ---
 
 ## 🔄 In Progress
 
-- **Supervisor email drafted** (`supervisor_email.md`) — pending send + reply on scope confirmation, dataset, golden RTL, meeting cadence
-- **Exposé revised** for the new testbench-generation scope (title, motivation, RQs, methods, metrics, timeline)
-- **CLAUDE.md updated** — new §6 pipeline (6 stages), §7 GraphState with TB fields, §8 RQs, §9 contributions, §10 metrics, §16 open questions
-- Plan file at `~/.claude/plans/i-want-you-to-rosy-frost.md` captures the full improvement roadmap
+Nothing actively in progress — Phase 2 complete, Phase 3 not yet started.
 
 ---
 
 ## ⏭️ Next Session — Start Here
 
-**Phase 1 is complete and smoke-tested. Begin Phase 2.**
+**Phases 0, 1, 2 complete. Active branch: `phase-2-pyverilog`. Begin Phase 3.**
 
-**LLM provider:** Groq free tier via OpenAI-compat API — `.env` has `LLM_API_KEY` + `LLM_BASE_URL` set.  
-Run any module with: `python -m pipeline run --module <name> --mode hybrid`
+**LLM provider:** Groq free tier — `.env` has `LLM_API_KEY` + `LLM_BASE_URL` set.  
+Run any module: `python -m pipeline run --module <name> --mode hybrid`
 
 **Phase 3 — Repair loop (next):**
 1. Implement `pipeline/nodes/repair.py` — oscillation check, increment repair_iter, route back to gen_driver with error_report in state
