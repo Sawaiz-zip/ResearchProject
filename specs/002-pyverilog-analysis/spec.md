@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-24
 
-**Status**: In Progress
+**Status**: ✅ Complete — gate passed 2026-06-24 (17/17 unit tests, T107/T108 verified)
 
 **Depends on**: `specs/001-langgraph-pipeline/` (Phase 1 gate must pass — ✅ done)
 

@@ -249,6 +249,50 @@ def _check_driven_observed(
     return errors
 
 
+# ── Sensitivity list check (SEQ) ─────────────────────────────────────────────
+
+def _check_sensitivity_lists(tb_module) -> list[ErrorReportItem]:
+    """
+    For sequential circuits: verify TB always-blocks use posedge/negedge clock.
+    If always-blocks exist but none have an edge trigger → SENSITIVITY_LIST_ERROR.
+    Only called when the DUT contains 'posedge' (is_seq=True).
+    """
+    always_blocks = [
+        item for item in (tb_module.items or [])
+        if isinstance(item, vast.Always)
+    ]
+    if not always_blocks:
+        return []
+
+    def _has_edge_trigger(always_block) -> bool:
+        sens_list = always_block.sens_list
+        if sens_list is None:
+            return False
+        for sens in (sens_list.list or []):
+            if getattr(sens, "type", None) in ("posedge", "negedge"):
+                return True
+        return False
+
+    if any(_has_edge_trigger(ab) for ab in always_blocks):
+        return []
+
+    # All always-blocks exist but none are clock-triggered
+    first_line = getattr(always_blocks[0], "lineno", None)
+    return [
+        ErrorReportItem(
+            error_type=ErrorType.SENSITIVITY_LIST_ERROR,
+            affected_signal="clk",
+            line=first_line,
+            suggested_fix=(
+                "Testbench has always-blocks but none use posedge/negedge clock "
+                "sensitivity. For a sequential DUT add: always @(posedge clk) begin "
+                "... end"
+            ),
+            severity=Severity.WARNING,
+        )
+    ]
+
+
 # ── $fdisplay check (SEQ) ─────────────────────────────────────────────────────
 
 def _check_fdisplay(
@@ -407,14 +451,17 @@ def run(
     else:
         dataflow_errors = []
 
+    sensitivity_errors: list[ErrorReportItem] = []
     fdisplay_missing: list[ErrorReportItem] = []
     if is_seq:
+        sensitivity_errors = _check_sensitivity_lists(tb_module)
         fdisplay_missing = _check_fdisplay(instances, dut_ports, tb_verilog)
 
     return PyverilogReport(
         parse_ok=True,
         parser_used="pyverilog",
         port_errors=port_errors,
+        sensitivity_errors=sensitivity_errors,
         dataflow_errors=dataflow_errors,
         fdisplay_missing=fdisplay_missing,
         raw_warnings=[],

@@ -7,7 +7,7 @@ import pytest
 from pipeline.analysis.pyverilog_runner import run
 from pipeline.analysis.error_taxonomy import ErrorType
 
-# ── Fixtures ─────────────────────────────────────────────────────────────────
+# ── CMB fixtures ──────────────────────────────────────────────────────────────
 
 HALF_ADDER_DUT = """\
 module half_adder(input a, input b, output sum, output cout);
@@ -16,7 +16,7 @@ module half_adder(input a, input b, output sum, output cout);
 endmodule
 """
 
-# All four ports connected correctly
+# All four ports connected correctly; outputs checked via if-comparison
 CORRECT_TB = """\
 module tb_half_adder;
     reg a, b;
@@ -62,12 +62,72 @@ module tb_half_adder;
 endmodule
 """
 
-# ── Tests ─────────────────────────────────────────────────────────────────────
+# ── SEQ fixtures ──────────────────────────────────────────────────────────────
+
+DFF_DUT = """\
+module dff(input clk, input d, output reg q);
+    always @(posedge clk) q <= d;
+endmodule
+"""
+
+# Correct SEQ TB: posedge clock + $display for output
+SEQ_CORRECT_TB = """\
+module tb_dff;
+    reg clk, d;
+    wire q;
+    dff dut(.clk(clk), .d(d), .q(q));
+    always #5 clk = ~clk;
+    always @(posedge clk) begin
+        $display("q=%b", q);
+    end
+    initial begin
+        clk = 0; d = 0; #20;
+        d = 1; #20;
+        $finish;
+    end
+endmodule
+"""
+
+# TB uses @(*) always block — wrong for sequential DUT
+SEQ_WRONG_SENSITIVITY_TB = """\
+module tb_dff;
+    reg clk, d;
+    wire q;
+    dff dut(.clk(clk), .d(d), .q(q));
+    always @(*) begin
+        $display("q=%b", q);
+    end
+    initial begin
+        clk = 0; d = 0; #20; $finish;
+    end
+endmodule
+"""
+
+# TB has no $display for output q
+SEQ_NO_DISPLAY_TB = """\
+module tb_dff;
+    reg clk, d;
+    wire q;
+    dff dut(.clk(clk), .d(d), .q(q));
+    always @(posedge clk) begin
+        d <= ~d;
+    end
+    initial begin
+        clk = 0; d = 0; #40; $finish;
+    end
+endmodule
+"""
+
+# ── CMB tests ─────────────────────────────────────────────────────────────────
 
 def test_clean_tb_no_errors():
     report = run(CORRECT_TB, HALF_ADDER_DUT, module_name="half_adder")
     assert report.parse_ok
-    assert report.is_clean(), f"Expected clean but got port_errors={report.port_errors}"
+    assert report.is_clean(), (
+        f"Expected clean report but got:\n"
+        f"  port_errors={report.port_errors}\n"
+        f"  dataflow_errors={report.dataflow_errors}"
+    )
 
 
 def test_missing_port_flagged():
@@ -96,8 +156,37 @@ def test_parse_ok_on_valid_verilog():
 
 def test_report_is_json_serialisable():
     report = run(CORRECT_TB, HALF_ADDER_DUT, module_name="half_adder")
-    # Must not raise
     serialised = json.dumps(report.to_dict())
     parsed = json.loads(serialised)
     assert "parse_ok" in parsed
     assert "port_errors" in parsed
+
+
+# ── SEQ tests ─────────────────────────────────────────────────────────────────
+
+def test_seq_correct_tb_no_errors():
+    report = run(SEQ_CORRECT_TB, DFF_DUT, module_name="dff")
+    assert report.parse_ok
+    assert report.is_clean(), (
+        f"Expected clean SEQ report but got:\n"
+        f"  sensitivity_errors={report.sensitivity_errors}\n"
+        f"  fdisplay_missing={report.fdisplay_missing}"
+    )
+
+
+def test_seq_wrong_sensitivity_flagged():
+    report = run(SEQ_WRONG_SENSITIVITY_TB, DFF_DUT, module_name="dff")
+    assert report.parse_ok
+    error_types = [e.error_type for e in report.sensitivity_errors]
+    assert ErrorType.SENSITIVITY_LIST_ERROR in error_types, (
+        f"Expected SENSITIVITY_LIST_ERROR, got: {error_types}"
+    )
+
+
+def test_seq_missing_fdisplay_flagged():
+    report = run(SEQ_NO_DISPLAY_TB, DFF_DUT, module_name="dff")
+    assert report.parse_ok
+    error_types = [e.error_type for e in report.fdisplay_missing]
+    assert ErrorType.MISSING_FDISPLAY in error_types, (
+        f"Expected MISSING_FDISPLAY, got: {error_types}"
+    )
