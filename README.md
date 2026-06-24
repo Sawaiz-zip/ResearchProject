@@ -113,15 +113,22 @@ results/           Per-run JSON output (git-ignored)
 git clone <repo-url>
 cd ResearchProject
 
-# 2. Install dependencies (requires uv)
+# 2. Install dependencies (requires uv or pip)
 uv sync --extra dev
+# or: pip install -e ".[dev]"
 
-# 3. Set your API key
+# 3. Configure your LLM provider (pick one — Groq is free)
 cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
+# Option A — Groq free tier (recommended, no credit card):
+#   LLM_API_KEY=gsk_...   (get from console.groq.com)
+#   LLM_BASE_URL=https://api.groq.com/openai/v1
+#   LLM_CHEAP_MODEL=llama-3.3-70b-versatile
+#   LLM_STRONG_MODEL=llama-3.3-70b-versatile
+# Option B — Anthropic:
+#   ANTHROPIC_API_KEY=sk-ant-...
 
 # 4. Verify tools are available
-iverilog --version   # Icarus Verilog
+iverilog --version   # Icarus Verilog (brew install icarus-verilog)
 python -c "import pyverilog; print('pyverilog ok')"
 python -m pipeline --help
 ```
@@ -131,16 +138,16 @@ python -m pipeline --help
 ## Running
 
 ```bash
-# Run on a single module (once Phase 1 is implemented)
+# Run on a single module
 python -m pipeline run --module alu_1bit --mode hybrid
 
-# Run the 5-module smoke set
+# Run the 5-module CMB smoke set
 bash scripts/run_smoke.sh hybrid
 
 # Full 156-module evaluation
 bash scripts/run_eval.sh hybrid
 
-# Aggregate results
+# Aggregate results across ablation modes
 python scripts/aggregate_results.py
 ```
 
@@ -170,12 +177,14 @@ python scripts/aggregate_results.py
 
 | Phase | Focus | Status |
 |---|---|---|
-| 0 — Setup | Project skeleton, shared infra | ✅ Skeleton complete |
-| 1 — Generation | CMB pipeline end-to-end | 🔲 Next |
-| 2 — Pyverilog | Static analysis layer | 🔲 Planned |
-| 3 — Repair + SEQ | Repair loop + sequential support | 🔲 Planned |
-| 4 — Evaluation | Full 156-module eval + ablations | 🔲 Planned |
-| 5 — Writing | Final report | 🔲 Planned |
+| 0 — Setup | Env, deps, Pyverilog smoke test | ✅ Done |
+| 1 — Generation | CMB pipeline end-to-end | ✅ Done — Eval0 5/5, Eval1 4/5, Eval2 4/4 |
+| 2 — Pyverilog | Static analysis layer | 🟢 In progress (branch: `phase-2-pyverilog`) |
+| 3 — Repair + SEQ | Repair loop + sequential support | ⚪ Planned |
+| 4 — Evaluation | Full 156-module eval + ablations | ⚪ Planned |
+| 5 — Writing | Final report (deadline Sept 1 2026) | ⚪ Planned |
+
+**Active LLM provider:** Groq free tier (Llama-3.3-70b-versatile) via OpenAI-compatible API.
 
 ---
 
