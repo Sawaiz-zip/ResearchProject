@@ -6,7 +6,12 @@ Specification:
 {{ spec | tojson(indent=2) }}
 
 Each scenario must be independently testable and cover a distinct behaviour.
-Include: normal cases, boundary cases, and at least one error/edge case.
+Include: normal cases, boundary cases, and corner cases with extreme valid values.
+
+STRICT RULES — violating these will break the testbench:
+- Only use valid logic values (0 or 1 for 1-bit signals; 0 to 2^N-1 for N-bit signals).
+- Do NOT test "invalid" or "out-of-range" input values — digital logic has no such concept in simulation.
+- Do NOT include scenarios that expect X or Z outputs from a purely combinational DUT.
 
 Respond with ONLY a JSON array:
 [

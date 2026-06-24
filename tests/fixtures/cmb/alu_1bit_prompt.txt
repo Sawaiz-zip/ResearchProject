@@ -1,0 +1,12 @@
+Implement a module named alu_1bit with the following interface.
+
+ - input  a      (1 bit)
+ - input  b      (1 bit)
+ - input  op     (2 bits)
+ - output result (1 bit)
+
+The module should implement a 1-bit ALU with four operations selected by op:
+  op=2'b00  result = a AND b
+  op=2'b01  result = a OR  b
+  op=2'b10  result = a XOR b
+  op=2'b11  result = NOT a  (b is ignored)

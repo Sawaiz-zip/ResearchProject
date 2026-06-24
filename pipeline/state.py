@@ -1,4 +1,5 @@
-from typing import Literal, TypedDict
+import operator
+from typing import Annotated, Literal, TypedDict
 
 
 class GraphState(TypedDict):
@@ -40,4 +41,6 @@ class GraphState(TypedDict):
 
     # ── Telemetry ────────────────────────────────────────────────────────────
     run_id: str
-    llm_calls: list[dict]  # {node, model, tokens_in, tokens_out, latency_ms}
+    # Annotated with operator.add so parallel branches (gen_driver, gen_checker)
+    # each append their log entry without overwriting each other's.
+    llm_calls: Annotated[list[dict], operator.add]

@@ -1,6 +1,6 @@
 # Technical Progress Report — S6.ReKI.1
 **LLM-Driven Verilog Testbench Generation with Pyverilog-Based Early Error Localization**
-**Student:** Muhammad Sawaiz Naveed | **Date:** 14 June 2026 | **Supervisor:** Bing Wen, TU Ilmenau
+**Student:** Muhammad Sawaiz Naveed | **Date:** 24 June 2026 | **Supervisor:** Bing Wen, TU Ilmenau
 
 ---
 
@@ -160,100 +160,130 @@ Before writing any code, we wrote a "constitution" — 10 rules that every line 
 
 ---
 
-## 4. What We Built (The Skeleton)
+## 4. What We Built (Phase 0 + Phase 1 — Complete)
 
-This session we built the complete **project skeleton** — all the files, directories, and code structure are in place, but the actual logic inside each function is marked as "TODO: implement in Phase X." Think of it like building the frame of a house: every room exists, every door is in the right place, but the furniture hasn't been moved in yet.
+Phase 0 set up the environment and confirmed all tools work. Phase 1 implemented the full combinational-circuit pipeline end-to-end. The system can now take a plain-English circuit description, generate a Verilog testbench using an LLM, and evaluate it — all automatically.
 
-### What was created (81 files, pushed to GitHub):
+### 4.1 Environment Setup (Phase 0)
 
-**`pipeline/state.py`** — The shared data container. Every step reads from and writes to this single structure (called `GraphState`). It holds everything: the input description, the generated testbench code, the error report, the repair iteration count, the evaluation results, and the log of every AI call made.
+- **Dependencies installed:** LangGraph, Pyverilog, Jinja2, pytest, python-dotenv, Anthropic SDK
+- **Icarus Verilog 13.0** installed via Homebrew — the simulator that evaluates generated testbenches
+- **VerilogEval dataset** downloaded — 156 circuit problems, each with a description, golden circuit code, and reference testbench
+- **Pyverilog smoke test passed** on 3 simple circuits and 1 clocked circuit. Two important findings discovered:
+  - Verilog-2001 style ports are wrapped in a `vast.Ioport` object — the code must unwrap it to get the port name
+  - The dataflow analyser crashes on `always @(posedge clk or posedge reset)` (async reset) — handled by catching the error and falling back to AST-only mode
 
-**`pipeline/config.py`** — Settings. Defines the four ablation modes and configuration options like "how many repair attempts before giving up."
+### 4.2 The Working Pipeline (Phase 1)
 
-**`pipeline/llm.py`** — The shared AI call function. Every node calls this one function to talk to Claude. It handles: logging, rate limit retries (with automatic waiting if the API is busy), and enforcing temperature=0. No node can bypass this.
+Every component listed below is fully implemented and tested, not a stub.
 
-**`pipeline/graph.py`** — The LangGraph graph definition. All 10 nodes are registered. All the edges (arrows between steps) are defined. The conditional edge (should we repair or go to evaluation?) is wired up.
+**`pipeline/llm.py`** — The shared AI call function used by every node. Supports three providers in priority order: Anthropic API → any OpenAI-compatible API (we use Groq's free tier) → OpenAI. Handles: logging every call (`node, model, tokens_in, tokens_out, latency_ms`), exponential backoff on rate limits, temperature=0 always. Model names like "claude-haiku" automatically map to the equivalent Groq/OpenAI model.
 
-**`pipeline/nodes/` (10 files)** — One file per pipeline step. Each file currently raises `NotImplementedError` with a comment explaining exactly what to write there and in which phase. For example, `classify.py` says:
-```python
-# TODO (Phase 1): render classify_circuit.j2, call llm_call(), parse JSON output
+**`pipeline/state.py`** — The shared data container (`GraphState`). Every node reads from and writes to this single structure. One technical detail worth noting: the `llm_calls` log field uses a special "reducer" so that when the driver and checker nodes run in parallel, their log entries are merged rather than one overwriting the other.
+
+**`pipeline/nodes/classify.py`** — Sends the circuit description + code to the LLM and gets back `{"circuit_type": "CMB"}` or `{"circuit_type": "SEQ"}`. Has a keyword fallback in case the LLM outputs plain text instead of JSON.
+
+**`pipeline/nodes/extract_spec.py`** — Sends the description + circuit code to the LLM and gets back a structured JSON spec: what are the input ports, output ports, and what logic should the circuit implement?
+
+**`pipeline/nodes/gen_scenarios.py`** — Takes the spec and asks the LLM for a list of named test cases (e.g., "test_zero_plus_zero", "test_max_values", "test_carry_out"). Prompts strictly forbid asking for invalid inputs or expecting X/Z values from a combinational circuit — a bug discovered during testing where the LLM would generate nonsensical test cases.
+
+**`pipeline/nodes/gen_driver.py`** + **`pipeline/nodes/gen_checker.py`** — These run in parallel. The driver node generates the actual Verilog testbench. The checker node generates a Python script that reads the simulation output and verifies results. Both run as separate branches in the LangGraph graph simultaneously, cutting wall-clock time.
+
+**`pipeline/eval/icarus.py`** — The Icarus Verilog wrapper. Fully implemented:
+- `compile_tb()` — writes testbench + circuit to temp files, runs `iverilog -g2012`, returns whether it compiled and the compiler output
+- `simulate_tb()` — runs the compiled binary with `vvp`, detects failure by looking for exactly `"FAIL: "` in the output (deliberately narrow — avoids false positives from debug prints containing the word "failed")
+- `eval2()` — runs the testbench against each mutant circuit; a mutant is "caught" if the testbench fails on it
+
+**`pipeline/eval/mutant_gen.py`** — Asks the LLM (cheap model) to inject a single fault into the golden circuit code (e.g., change `+` to `-`, flip a comparison, swap two ports). Generates 5 mutants per module for Eval2.
+
+**`pipeline/nodes/evaluate.py`** — Orchestrates the full evaluation: Eval0 (compile) → Eval1 (run against golden circuit) → Eval2 (run against mutants). Writes a complete result JSON to `results/<run_id>.json` including debug fields (compiler output, simulation output) when something fails.
+
+**`pipeline/__main__.py`** — The command-line interface. Run any module with:
 ```
+python -m pipeline run --module half_adder --mode hybrid
+```
+Automatically finds modules in the VerilogEval dataset or local fixture files.
 
-**`prompts/` (8 files)** — All AI prompt templates are written and ready. These are Jinja2 templates (like a form letter with blanks to fill in). When a node runs, it fills in the blanks with the actual circuit data and sends the completed prompt to Claude. For example, `gen_driver.j2` says: "You are a hardware verification expert. Write a Verilog testbench driver for [module name]. Here is the spec: [spec]. Here are the test scenarios: [scenarios]..."
+**`prompts/` (8 Jinja2 templates)** — All AI prompts live in separate files, never hardcoded. Each template has blank fields (`{{ module_name }}`, `{{ spec }}`, etc.) filled in at runtime with actual data.
 
-**`pipeline/analysis/error_taxonomy.py`** — The data structures for describing errors. Fully implemented. Defines all error types (`PORT_BINDING_MISMATCH`, `UNDRIVEN_INPUT`, `MISSING_FDISPLAY`, etc.), severity levels (`ERROR`, `WARNING`, `INFO`), and the `PyverilogReport` object that holds an analysis result. This is the "vocabulary" the whole system uses to talk about bugs.
+**`pipeline/analysis/error_taxonomy.py`** — Defines the vocabulary for describing errors: `PORT_BINDING_MISMATCH`, `UNDRIVEN_INPUT`, `SENSITIVITY_LIST_ERROR`, `MISSING_FDISPLAY`, etc. with severity levels (`ERROR`, `WARNING`, `INFO`). Used by the Pyverilog layer (Phase 2).
 
-**`pipeline/eval/icarus.py`** — Stub for the Icarus Verilog wrapper. Will run `iverilog` and `vvp` as subprocesses and parse the output.
+**`tests/fixtures/cmb/`** — 5 combinational circuit fixtures used for the smoke test: `half_adder`, `mux2to1`, `alu_1bit`, `comparator_2bit`, `priority_encoder`. All verified to compile with Icarus Verilog.
 
-**`pipeline/standardiser/fdisplay_inserter.py`** — Stub for the Python AST pass that inserts missing `$fdisplay` statements. No AI involved — pure Python.
+### 4.3 Smoke Test Results (Phase 1 Gate)
 
-**`scripts/`** — Three scripts:
-- `run_smoke.sh` — runs the pipeline on 5 simple test circuits for fast validation
-- `run_eval.sh` — runs the full 156-circuit evaluation
-- `aggregate_results.py` — reads all result files and produces a summary table
+The pipeline was run on all 5 CMB fixtures with `--mode hybrid`:
 
-**`tests/`** — pytest test suite. Two tests already pass right now (for `error_taxonomy.py` and `config.py`). The rest are stubs waiting for their corresponding nodes to be implemented.
+| Module | Eval0 (compiles?) | Eval1 (correct?) | Eval2 (catches bugs?) |
+|---|---|---|---|
+| half_adder | ✅ | ✅ | 1.00 (5/5 mutants caught) |
+| mux2to1 | ✅ | ✅ | 1.00 |
+| alu_1bit | ✅ | ✅ | 1.00 |
+| comparator_2bit | ✅ | ✅ | 1.00 |
+| priority_encoder | ✅ | ❌ | — |
 
-**`specs/`** — Spec-kit planning documents:
-- `constitution.md` — the 10 engineering rules
-- `spec.md` — 5 user stories with acceptance criteria
-- `plan.md` — full file tree and 6-phase breakdown
-- `tasks.md` — 59 numbered tasks with parallel markers
+**Eval0: 5/5 = 100% · Eval1: 4/5 = 80% · Eval2: 4/4 = 100% on passing modules**
 
-**`README.md`** — Public documentation on GitHub explaining what the project does, how to run it, and how the pipeline works.
+**Phase 1 gate PASSED** (required: Eval0 ≥ 80%, Eval1 ≥ 50%).
+
+The one Eval1 failure (`priority_encoder`) is a known LLM reasoning error: the model expected output `pos=2` when the correct answer for input `4'b1000` (bit 3 set) is `pos=3`. This is exactly the class of error the repair loop (Phase 3) is designed to fix using Pyverilog feedback.
 
 ---
 
 ## 5. What's Next
 
-### Phase 1 — Make It Actually Generate Testbenches (Next 3 Weeks)
+### ✅ Phase 1 — Complete
 
-This is the immediate next step. We need to fill in the actual logic in the node stubs so the pipeline can produce a real testbench end-to-end.
+The pipeline generates and evaluates CMB testbenches end-to-end. Gate passed. No outstanding work in Phase 1.
 
-**Specifically:**
+---
 
-1. **`classify_node`** — Send the circuit description to Haiku, parse the JSON response (`{"circuit_type": "CMB"}`), write the result to GraphState.
+### Phase 2 — Add the Pyverilog Layer (Current — Weeks 5–9)
 
-2. **`extract_spec_node`** — Send description + circuit code to Sonnet, parse the JSON spec (ports, behaviour, timing), write to GraphState.
+This is the primary research contribution of the project. Phase 1 shows the pipeline *works*; Phase 2 adds the layer that makes it *smarter* by catching bugs before simulation.
 
-3. **`gen_scenarios_node`** — Send the spec to Haiku, parse the list of test scenarios, write to GraphState.
+**Three components to implement:**
 
-4. **`gen_driver_node` + `gen_checker_node`** — Send spec + scenarios to Sonnet, extract the generated Verilog/Python code from the response, write to GraphState. These two run in parallel.
+1. **`pipeline/analysis/pyverilog_runner.py`** — The core analysis engine. Takes the generated testbench + golden circuit as input, runs Pyverilog on them together, and checks:
+   - Port bindings: does the testbench connect every port by the right name?
+   - Dataflow: does the testbench drive all inputs? Does it observe all outputs?
+   - Sensitivity lists: for clocked circuits, are the `always @(...)` blocks correct?
+   - `$fdisplay` presence: for clocked circuits, is every output being printed?
+   
+   The Phase 0 smoke test already found two important quirks that the implementation must handle: Verilog-2001 port style wraps ports in `vast.Ioport` objects, and the dataflow analyser crashes on async reset — both are already documented in the file as implementation notes.
 
-5. **`icarus.compile_tb()`** — Write the generated Verilog to a temp file, run `iverilog -o output tb.v dut.v` as a subprocess, return whether it succeeded.
+2. **`pipeline/nodes/pyverilog_analysis.py`** — The LangGraph node that calls `pyverilog_runner`, handles the Verible fallback if Pyverilog can't parse the file, and writes the structured `pyverilog_report` to the pipeline state.
 
-6. **`icarus.simulate_tb()`** — Run `vvp output` with a 30-second timeout, scan the output for failure messages, return pass/fail.
+3. **`pipeline/nodes/error_reasoner.py`** — A Sonnet LLM call that reads Pyverilog's technical report and translates it into a list of human-readable, actionable fixes: `[{error_type, affected_signal, line, suggested_fix, severity}]`. This structured list is what gets fed back to the driver generator in the repair loop.
 
-7. **`evaluate_node`** — Orchestrate Eval0 → Eval1 → Eval2, write the full result JSON to `results/<run_id>.json`.
+**Gate before Phase 3:** A hand-crafted buggy testbench (wrong port name, missing output observation) must produce a non-empty error report from `pyverilog_runner`. Pyverilog error precision ≥ 70% and recall ≥ 50% on 20 hand-labelled circuits.
 
-**Gate before Phase 2 can begin:** Run `scripts/run_smoke.sh` on 5 simple circuits. Eval0 (compilation) must pass on at least 4/5. Eval1 (correctness) must pass on at least 3/5. If those numbers aren't hit, we fix the prompts and retry before moving forward.
-
-### Phase 2 — Add the Pyverilog Layer (Weeks 5–9)
-
-Once the pipeline generates testbenches reliably, we add the pre-simulation checker:
-
-- Implement `pyverilog_runner.py` — parse TB + circuit together, walk the AST, check port connections and sensitivity lists, run dataflow analysis
-- Implement `verible_runner.py` — fallback parser for messy AI-generated Verilog
-- Implement `error_reasoner_node` — translate Pyverilog's technical output into actionable AI prompts
-- Hand-label 20 circuits to measure how accurate Pyverilog's error detection actually is (precision and recall)
+---
 
 ### Phase 3 — Repair Loop + Sequential Circuits (Weeks 10–13)
 
-- Wire the conditional edge: if Pyverilog finds errors and we haven't used up our 3 attempts, loop back to the driver generation step with the error report attached to the prompt
-- Implement oscillation detection
-- Implement the `$fdisplay` standardiser (Python AST pass)
-- Add support for sequential (clocked) circuits through the full pipeline
+Once Pyverilog produces structured error reports, we wire the feedback loop:
+
+- Implement `pipeline/nodes/repair.py` — reads the error report, increments `repair_iter`, detects oscillation (same report twice in a row), then routes back to the driver/checker generation nodes with the error report attached to the prompt
+- Wire the conditional edge in `graph.py`: if `error_report` is non-empty and `repair_iter < 3` and no oscillation → go to repair; otherwise → go to evaluate
+- Implement `pipeline/standardiser/fdisplay_inserter.py` — Python AST pass that inserts missing `$fdisplay` statements for clocked circuits. Zero LLM calls — purely deterministic
+- Extend the pipeline to handle sequential (clocked) circuits end-to-end
+
+---
 
 ### Phase 4 — Full Evaluation (Weeks 14–16)
 
-- Run all 4 ablation modes across all 156 VerilogEval circuits (624 total pipeline runs)
-- Collect and compare: Eval0/1/2 pass rates, token costs, repair iterations needed, failure stage attribution
+- Run all 4 ablation modes (baseline / compiler-only / pyverilog-only / hybrid) across all 156 VerilogEval circuits = 624 total pipeline runs
+- Collect: Eval0/1/2 pass rates, tokens per module, repair iterations needed, which pipeline stage failures originated from
 - This produces the empirical results that answer the four research questions
+
+---
 
 ### Phase 5 — Write the Report (Weeks 17–20, deadline Sept 1)
 
 - Write the final research report in LaTeX
 - Key sections: introduction, related work, methodology (pipeline design), evaluation setup, results and analysis, discussion, conclusion
+- Report skeleton can be drafted in parallel with Phase 4 evaluation runs
 
 ---
 
@@ -277,14 +307,22 @@ The key insight is that **knowing why the testbench is wrong is more valuable th
 |---|---|
 | All 3 papers read and understood | ✅ Done |
 | Project constitution + spec + plan + 59 tasks written | ✅ Done |
-| Full project skeleton (81 files) on GitHub | ✅ Done |
+| Full project skeleton on GitHub | ✅ Done |
 | All 8 AI prompt templates written | ✅ Done |
 | Error taxonomy data structures | ✅ Done |
 | LangGraph graph skeleton (all nodes wired) | ✅ Done |
 | Shared LLM wrapper with logging | ✅ Done |
-| LangGraph course | 🟡 In Progress |
-| Install dependencies + Pyverilog smoke test | ⚪ Next |
-| Download VerilogEval dataset | ⚪ Next |
-| Phase 1 node implementations | ⚪ Next |
+| Dependencies installed (langgraph, pyverilog, jinja2, etc.) | ✅ Done |
+| Icarus Verilog 13.0 installed | ✅ Done |
+| VerilogEval dataset downloaded (156 problems) | ✅ Done |
+| Pyverilog smoke test (3 CMB + 1 SEQ modules) | ✅ Done |
+| Phase 1 node implementations (classify → gen_driver → evaluate) | ✅ Done |
+| Icarus Verilog wrapper (compile_tb / simulate_tb / eval2) | ✅ Done |
+| CLI (`python -m pipeline run --module X --mode hybrid`) | ✅ Done |
+| 5-module CMB smoke test — Eval0 5/5, Eval1 4/5, Eval2 4/4 | ✅ Done (gate PASSED) |
+| LLM provider: Groq free tier (Llama-3.3-70b-versatile) | ✅ Active |
+| Phase 2 — Pyverilog static analysis layer | ⚪ Next |
+| Phase 3 — Repair loop | ⚪ Not started |
+| Phase 4 — SEQ support + $fdisplay standardiser | ⚪ Not started |
 
-**Bottom line:** The entire project structure is designed, planned, and scaffolded. The next step is to install the dependencies and start filling in the actual AI logic in the nodes, one by one, until a full testbench comes out the other end.
+**Bottom line:** Phase 1 is complete and gate-tested. The pipeline generates compilable, functionally correct Verilog testbenches for combinational circuits end-to-end, using Groq's free LLM API. The next step is Phase 2: implementing the Pyverilog AST + dataflow analysis layer that is this project's primary research contribution.

@@ -1,0 +1,15 @@
+Implement a module named priority_encoder with the following interface.
+
+ - input  in  (4 bits)
+ - output pos (2 bits)
+ - output valid (1 bit)
+
+The module should implement a 4-to-2 priority encoder. Given a 4-bit input vector, the output pos reports the index of the lowest-numbered bit that is high (bit 0 has highest priority). Output valid is 1 when at least one input bit is high, and 0 when the input is all zeros.
+
+Examples:
+  in=4'b0000 -> pos=2'd0, valid=0
+  in=4'b0001 -> pos=2'd0, valid=1
+  in=4'b0010 -> pos=2'd1, valid=1
+  in=4'b0100 -> pos=2'd2, valid=1
+  in=4'b1000 -> pos=2'd3, valid=1
+  in=4'b1010 -> pos=2'd1, valid=1  (bit 1 is lowest set bit)
