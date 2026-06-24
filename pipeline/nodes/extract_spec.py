@@ -1,11 +1,37 @@
 """
 Node 1b — Extract structured JSON spec from NL description + golden DUT.
-Model: Sonnet.
+Model: Sonnet (needs to understand Verilog port declarations precisely).
 """
 
+import json
+
+from pipeline.config import PipelineConfig
+from pipeline.llm import extract_json, llm_call, render_prompt
 from pipeline.state import GraphState
 
 
 def extract_spec_node(state: GraphState) -> dict:
-    # TODO (Phase 1): render extract_spec.j2, call llm_call(), parse JSON spec
-    raise NotImplementedError("extract_spec_node not implemented yet")
+    cfg = PipelineConfig()
+    prompt = render_prompt(
+        "extract_spec.j2",
+        nl_description=state["nl_description"],
+        golden_dut=state["golden_dut"],
+        module_name=state["module_name"],
+    )
+    text, log = llm_call(
+        node="extract_spec",
+        model=cfg.model_strong,
+        prompt=prompt,
+        run_id=state["run_id"],
+    )
+    try:
+        spec = extract_json(text)
+        if not isinstance(spec, dict):
+            spec = {}
+    except (json.JSONDecodeError, AttributeError, ValueError):
+        spec = {}
+
+    return {
+        "spec": spec,
+        "llm_calls": [log],
+    }

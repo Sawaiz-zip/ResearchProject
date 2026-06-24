@@ -22,9 +22,12 @@ IMPORTANT — Previous version had these errors. Fix all of them:
 Requirements:
 - Instantiate the DUT with the exact port names from the specification
 - Drive every input port; observe every output port
-- Use $display or $fdisplay to print results for each scenario
+- For each scenario: apply inputs, wait #10, check outputs
+- Print "PASS: <scenario_name>" on success, "FAIL: <scenario_name>" on failure — use EXACTLY these words
 - End with $finish
 - For sequential circuits: use posedge clock; apply inputs after posedge; sample outputs before next posedge
 - Do NOT include the DUT module definition — only the testbench
+- Do NOT test invalid or out-of-range input values; only apply values that fit within each port's declared width
+- Do NOT use 'x or 'z in expected output comparisons for a combinational DUT
 
 Respond with ONLY the Verilog code, no explanation, no markdown fences.

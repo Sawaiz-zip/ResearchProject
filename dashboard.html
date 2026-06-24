@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>S6.ReKI.1 — Progress</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
+      background: #F0F2F5;
+      color: #1A202C;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      background: #1A202C;
+      color: white;
+      padding: 28px 40px 24px;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    header .subtitle {
+      font-size: 13px;
+      color: #718096;
+      margin-top: 4px;
+    }
+
+    .overall-stats {
+      display: flex;
+      gap: 32px;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #2D3748;
+    }
+
+    .stat { }
+    .stat-value {
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-top: 4px;
+    }
+
+    .stat-value.done-color   { color: #68D391; }
+    .stat-value.active-color { color: #F6E05E; }
+    .stat-value.blocked-color{ color: #FC8181; }
+    .stat-value.total-color  { color: #EDF2F7; }
+
+    /* overall progress bar */
+    .overall-bar-wrap {
+      margin-top: 16px;
+      background: #2D3748;
+      border-radius: 4px;
+      height: 5px;
+      overflow: hidden;
+    }
+    .overall-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #68D391, #48BB78);
+      border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+
+    /* ── MAIN ── */
+    .main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 28px 24px 60px;
+    }
+
+    /* ── PHASE CARD ── */
+    .phase {
+      background: white;
+      border-radius: 10px;
+      margin-bottom: 14px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+      border-left: 4px solid var(--c);
+    }
+
+    .phase-header {
+      display: flex;
+      align-items: center;
+      padding: 14px 18px;
+      cursor: pointer;
+      user-select: none;
+      gap: 14px;
+    }
+
+    .phase-header:hover { background: #FAFAFA; }
+
+    .phase-meta { flex: 1; }
+    .phase-meta h2 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1A202C;
+    }
+    .phase-meta p {
+      font-size: 12px;
+      color: #A0AEC0;
+      margin-top: 2px;
+    }
+
+    .phase-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .phase-fraction {
+      font-size: 12px;
+      color: #A0AEC0;
+      min-width: 38px;
+      text-align: right;
+    }
+
+    .mini-bar {
+      width: 80px;
+      height: 5px;
+      background: #EDF2F7;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .mini-bar-fill {
+      height: 100%;
+      background: var(--c);
+      border-radius: 3px;
+      transition: width 0.4s ease;
+    }
+
+    .chevron {
+      color: #CBD5E0;
+      font-size: 11px;
+      transition: transform 0.2s;
+    }
+    .phase.open .chevron { transform: rotate(90deg); }
+
+    /* ── TASK LIST ── */
+    .task-list { display: none; border-top: 1px solid #EDF2F7; }
+    .phase.open .task-list { display: block; }
+
+    .task {
+      display: flex;
+      align-items: center;
+      padding: 9px 18px 9px 20px;
+      border-bottom: 1px solid #F7FAFC;
+      gap: 10px;
+      transition: background 0.1s;
+    }
+    .task:last-child { border-bottom: none; }
+    .task:hover { background: #F7FAFC; }
+
+    .task-num {
+      font-size: 11px;
+      color: #CBD5E0;
+      font-weight: 600;
+      min-width: 18px;
+    }
+
+    .task-name {
+      flex: 1;
+      font-size: 13px;
+      color: #2D3748;
+      line-height: 1.4;
+    }
+
+    .task.done .task-name {
+      text-decoration: line-through;
+      color: #CBD5E0;
+    }
+
+    /* status badge */
+    .badge {
+      cursor: pointer;
+      padding: 3px 11px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      border: none;
+      outline: none;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+    .badge:hover  { opacity: 0.85; }
+    .badge:active { transform: scale(0.93); }
+
+    .badge.todo    { background: #EDF2F7; color: #718096; }
+    .badge.active  { background: #FEFCBF; color: #744210; }
+    .badge.done    { background: #C6F6D5; color: #22543D; }
+    .badge.blocked { background: #FED7D7; color: #9B2C2C; }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      font-size: 12px;
+      color: #A0AEC0;
+      padding-bottom: 32px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>S6.ReKI.1 — LLM-Driven Verilog Testbench Generation</h1>
+  <div class="subtitle">Muhammad Sawaiz Naveed &nbsp;·&nbsp; TU Ilmenau &nbsp;·&nbsp; Deadline: 1 September 2026</div>
+  <div class="overall-stats">
+    <div class="stat">
+      <div class="stat-value total-color"  id="s-total">0</div>
+      <div class="stat-label">Total Tasks</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value done-color"   id="s-done">0</div>
+      <div class="stat-label">Done</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value active-color" id="s-active">0</div>
+      <div class="stat-label">In Progress</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value blocked-color" id="s-blocked">0</div>
+      <div class="stat-label">Blocked</div>
+    </div>
+  </div>
+  <div class="overall-bar-wrap">
+    <div class="overall-bar-fill" id="overall-bar" style="width:0%"></div>
+  </div>
+</header>
+
+<div class="main" id="board"></div>
+
+<footer id="footer"></footer>
+
+<script>
+/* ─── DATA ─────────────────────────────────────────────────── */
+const phases = [
+  {
+    id: 'p0',
+    title: 'Phase 0 — Setup',
+    period: 'Weeks 1–2  ·  May–Jun 2026',
+    color: '#4299E1',
+    tasks: [
+      'Read AutoBench paper (arXiv:2407.03891)',
+      'Read VerilogEval paper (arXiv:2309.07544)',
+      'Read Pyverilog paper (Takamaeda 2015)',
+      'Complete LangGraph introductory course (Module 1)',
+      'Write project constitution + spec + plan + tasks (spec-kit)',
+      'Create Python project structure with pyproject.toml',
+      'Write shared LLM wrapper (llm.py) with logging + backoff',
+      'Define GraphState TypedDict with all pipeline fields',
+      'Define PipelineConfig + AblationMode enum',
+      'Build LangGraph graph skeleton (all 10 nodes registered)',
+      'Write all 8 Jinja2 prompt templates in prompts/',
+      'Write error taxonomy (ErrorType, PyverilogReport dataclasses)',
+      'Write stub node files with TODO comments per phase',
+      'Write eval/ and standardiser/ stubs',
+      'Write aggregate_results.py + run_smoke.sh + run_eval.sh',
+      'Initialise GitHub repository and push to main branch',
+      'Create phase-1-generation branch',
+      'Install all dependencies (LangGraph, Pyverilog, Icarus Verilog)',
+      'Download and analyse VerilogEval dataset (156 problems)',
+      'Smoke-test Pyverilog on 2–3 example Verilog modules',
+      'Add 5 CMB fixtures to tests/fixtures/cmb/',
+    ]
+  },
+  {
+    id: 'p1',
+    title: 'Phase 1 — Testbench Generation (CMB)',
+    period: 'Weeks 3–6  ·  May–June 2026',
+    color: '#9F7AEA',
+    tasks: [
+      'Implement classify_node — CMB vs SEQ detection (Haiku)',
+      'Implement extract_spec_node — JSON spec from NL description (Sonnet)',
+      'Implement gen_scenarios_node — named test scenario list (Haiku)',
+      'Implement gen_driver_node — generate Verilog testbench (Sonnet)',
+      'Implement gen_checker_node — generate Python checker (Sonnet)',
+      'Wire gen_driver + gen_checker as parallel LangGraph branches',
+      'Implement icarus.compile_tb() — Eval0 subprocess wrapper',
+      'Implement icarus.simulate_tb() — Eval1 subprocess wrapper',
+      'Implement icarus.eval2() — run TB against mutant DUTs',
+      'Implement mutant_gen.generate_mutants() — Haiku fault injection',
+      'Implement evaluate_node — orchestrate Eval0/1/2, write results JSON',
+      'End-to-end smoke test on 5 CMB fixtures (Eval0 ≥ 80%, Eval1 ≥ 50%)',
+    ]
+  },
+  {
+    id: 'p2',
+    title: 'Phase 2 — Pyverilog Static Analysis',
+    period: 'Weeks 5–9  ·  June 2026',
+    color: '#48BB78',
+    tasks: [
+      'Build PyverilogNode — parse testbench + golden DUT together',
+      'AST checks: port bindings (TB ↔ DUT) and sensitivity lists',
+      'Dataflow checks: undriven inputs, unobserved outputs, width mismatches',
+      'Presence checks: $fdisplay for every output (SEQ circuits)',
+      'Add Verible fallback when Pyverilog rejects LLM-generated syntax',
+      'Define structured error report format {type, signal, line, fix, severity}',
+      'Implement ErrorReasonNode — translate Pyverilog report to LLM-readable errors (Sonnet)',
+      'Build error taxonomy: categorise types, tag each as Pyverilog-detectable or not',
+      'Hand-label 20 dev-set modules to measure Pyverilog precision and recall',
+      'Write reusable pyverilog_analyzer.py module (importable, tested)',
+    ]
+  },
+  {
+    id: 'p3',
+    title: 'Phase 3 — Repair Loop + Sequential Circuits',
+    period: 'Weeks 10–13  ·  June–July 2026',
+    color: '#ED8936',
+    tasks: [
+      'Implement repair loop as a conditional LangGraph edge',
+      'RepairRouter: 4 exit conditions (no errors / oscillation / exhausted / continue)',
+      'Implement oscillation detection (compare error_report to previous iteration)',
+      'DeterministicStandardizerNode — insert $fdisplay, normalise clocking (Python AST)',
+      'Extend DriverGenNode to accept error_report context on repair iterations',
+      'Add SEQ circuit support throughout the full pipeline',
+      'Implement Eval2 — run testbench against mutant DUTs, measure catch rate',
+      'Full end-to-end test on 20 CMB + 10 SEQ modules',
+      'Confirm repair loop improves Eval0/1/2 vs no-repair baseline',
+    ]
+  },
+  {
+    id: 'p4',
+    title: 'Phase 4 — Evaluation + Ablations',
+    period: 'Weeks 14–16  ·  July–August 2026',
+    color: '#E53E3E',
+    tasks: [
+      'Freeze all prompts before running the held-out test set',
+      'Run full pipeline on 125 held-out modules (80% split)',
+      'Run 4 ablation conditions: baseline / compiler-only / Pyverilog-only / hybrid',
+      'Collect per-node failure attribution from LangGraph telemetry',
+      'Collect iterations-to-pass distribution across all runs',
+      'Collect token cost per module for each ablation condition',
+      'Compute Pyverilog error precision and recall vs hand-labelled ground truth',
+      'Compare Eval0/1/2 results across all 4 ablation conditions',
+      'Identify and document most common failure modes',
+      'Prepare results tables and figures for the final report',
+    ]
+  },
+  {
+    id: 'p5',
+    title: 'Phase 5 — Final Report',
+    period: 'Weeks 17–20  ·  August–September 2026',
+    color: '#718096',
+    tasks: [
+      'Write Introduction (motivation, problem statement, contributions)',
+      'Write Related Work (AutoBench, VerilogEval, Pyverilog, LLM4DV)',
+      'Write Methodology (pipeline architecture, each node, design decisions)',
+      'Write Evaluation Setup (dataset split, metrics, ablation design)',
+      'Write Results (tables, figures, answer each RQ explicitly)',
+      'Write Discussion (failure analysis, limitations, future work)',
+      'Write Conclusion',
+      'Supervisor review round — address all comments',
+      'Final submission — September 1, 2026',
+    ]
+  },
+];
+
+/* ─── STATE ─────────────────────────────────────────────────── */
+const CYCLE = ['todo', 'active', 'done', 'blocked'];
+const LABELS = { todo: '⚪ Todo', active: '🟡 In Progress', done: '✅ Done', blocked: '🔴 Blocked' };
+
+function getKey(pid, ti) { return `${pid}_${ti}`; }
+
+function getStatus(pid, ti) {
+  return localStorage.getItem(getKey(pid, ti)) || 'todo';
+}
+
+function setStatus(pid, ti, status) {
+  localStorage.setItem(getKey(pid, ti), status);
+}
+
+function nextStatus(current) {
+  return CYCLE[(CYCLE.indexOf(current) + 1) % CYCLE.length];
+}
+
+/* ─── RENDER ─────────────────────────────────────────────────── */
+function renderAll() {
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+
+  phases.forEach(phase => {
+    const div = document.createElement('div');
+    div.className = 'phase open';
+    div.style.setProperty('--c', phase.color);
+
+    const statuses = phase.tasks.map((_, ti) => getStatus(phase.id, ti));
+    const doneCount = statuses.filter(s => s === 'done').length;
+    const pct = Math.round((doneCount / phase.tasks.length) * 100);
+
+    div.innerHTML = `
+      <div class="phase-header" onclick="togglePhase(this.parentElement)">
+        <div class="phase-meta">
+          <h2>${phase.title}</h2>
+          <p>${phase.period}</p>
+        </div>
+        <div class="phase-right">
+          <span class="phase-fraction">${doneCount}/${phase.tasks.length}</span>
+          <div class="mini-bar"><div class="mini-bar-fill" style="width:${pct}%"></div></div>
+          <span class="chevron">▶</span>
+        </div>
+      </div>
+      <div class="task-list">
+        ${phase.tasks.map((name, ti) => {
+          const status = statuses[ti];
+          return `
+            <div class="task ${status}" id="${getKey(phase.id, ti)}">
+              <span class="task-num">${ti + 1}</span>
+              <span class="task-name">${name}</span>
+              <button class="badge ${status}" onclick="cycle('${phase.id}', ${ti})">
+                ${LABELS[status]}
+              </button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    board.appendChild(div);
+  });
+
+  updateStats();
+  updateFooter();
+}
+
+function cycle(pid, ti) {
+  const current = getStatus(pid, ti);
+  const next = nextStatus(current);
+  setStatus(pid, ti, next);
+
+  const row = document.getElementById(getKey(pid, ti));
+  row.className = `task ${next}`;
+  const btn = row.querySelector('.badge');
+  btn.className = `badge ${next}`;
+  btn.textContent = LABELS[next];
+
+  refreshPhaseBar(pid);
+  updateStats();
+  updateFooter();
+}
+
+function refreshPhaseBar(pid) {
+  const phase = phases.find(p => p.id === pid);
+  const doneCount = phase.tasks.filter((_, ti) => getStatus(pid, ti) === 'done').length;
+  const pct = Math.round((doneCount / phase.tasks.length) * 100);
+
+  const phaseEl = document.querySelector(`#board .phase:nth-child(${phases.indexOf(phase) + 1})`);
+  if (!phaseEl) return;
+  phaseEl.querySelector('.mini-bar-fill').style.width = pct + '%';
+  phaseEl.querySelector('.phase-fraction').textContent = `${doneCount}/${phase.tasks.length}`;
+}
+
+function updateStats() {
+  let total = 0, done = 0, active = 0, blocked = 0;
+  phases.forEach(p => {
+    p.tasks.forEach((_, ti) => {
+      total++;
+      const s = getStatus(p.id, ti);
+      if (s === 'done')    done++;
+      if (s === 'active')  active++;
+      if (s === 'blocked') blocked++;
+    });
+  });
+  document.getElementById('s-total').textContent   = total;
+  document.getElementById('s-done').textContent    = done;
+  document.getElementById('s-active').textContent  = active;
+  document.getElementById('s-blocked').textContent = blocked;
+  const pct = Math.round((done / total) * 100);
+  document.getElementById('overall-bar').style.width = pct + '%';
+}
+
+function updateFooter() {
+  document.getElementById('footer').textContent =
+    'Last updated: ' + new Date().toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+}
+
+function togglePhase(el) {
+  el.classList.toggle('open');
+}
+
+/* ─── INIT ───────────────────────────────────────────────────── */
+
+// Pre-set known completed tasks (only if no saved state exists yet)
+function initDefaults() {
+  const defaults = {
+    // Phase 0 — completed this session (2026-06-14)
+    'p0_0':  'done',   // Read AutoBench paper
+    'p0_1':  'done',   // Read VerilogEval paper
+    'p0_2':  'done',   // Read Pyverilog paper
+    'p0_3':  'active', // LangGraph course — in progress
+    'p0_4':  'done',   // spec-kit constitution + spec + plan + tasks
+    'p0_5':  'done',   // Python project structure + pyproject.toml
+    'p0_6':  'done',   // shared LLM wrapper
+    'p0_7':  'done',   // GraphState TypedDict
+    'p0_8':  'done',   // PipelineConfig + AblationMode
+    'p0_9':  'done',   // LangGraph graph skeleton
+    'p0_10': 'done',   // All 8 Jinja2 prompt templates
+    'p0_11': 'done',   // Error taxonomy dataclasses
+    'p0_12': 'done',   // Stub node files
+    'p0_13': 'done',   // eval/ + standardiser/ stubs
+    'p0_14': 'done',   // scripts (aggregate, smoke, eval)
+    'p0_15': 'done',   // GitHub repo pushed to main
+    'p0_16': 'done',   // phase-1-generation branch created
+    // p0_17 (install deps), p0_18 (download dataset), p0_19 (pyverilog smoke), p0_20 (fixtures) — todo
+  };
+  Object.entries(defaults).forEach(([key, val]) => {
+    if (!localStorage.getItem(key)) localStorage.setItem(key, val);
+  });
+}
+
+initDefaults();
+renderAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+Implement a module named comparator_2bit with the following interface.
+
+ - input  a   (2 bits)
+ - input  b   (2 bits)
+ - output eq  (1 bit)
+ - output lt  (1 bit)
+ - output gt  (1 bit)
+
+The module should compare two unsigned 2-bit numbers a and b:
+  eq = 1 when a equals b
+  lt = 1 when a is strictly less than b
+  gt = 1 when a is strictly greater than b
+Exactly one of eq, lt, gt is 1 for any input combination.

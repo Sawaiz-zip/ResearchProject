@@ -5,7 +5,7 @@ description: "Task list for the LangGraph Verilog testbench pipeline"
 # Tasks: LangGraph Verilog Testbench Generation Pipeline
 
 **Input**: [spec.md](./spec.md) + [plan.md](./plan.md)
-**Last updated**: 2026-06-14
+**Last updated**: 2026-06-24
 
 ---
 
@@ -13,16 +13,16 @@ description: "Task list for the LangGraph Verilog testbench pipeline"
 
 **Purpose**: Project skeleton and shared utilities every node depends on. Nothing else can start until this phase is complete.
 
-- [ ] T001 Create `pyproject.toml` with dependencies: `langgraph`, `anthropic`, `pyverilog`, `jinja2`, `pytest`
-- [ ] T002 Create `.env.example` with `ANTHROPIC_API_KEY=` placeholder
-- [ ] T003 [P] Create `pipeline/__init__.py` and package skeleton (`nodes/`, `analysis/`, `standardiser/`, `eval/`)
-- [ ] T004 Create `pipeline/state.py` — `GraphState` TypedDict matching CLAUDE.md §7 schema exactly
-- [ ] T005 Create `pipeline/config.py` — `AblationMode` enum (`BASELINE`, `COMPILER_ONLY`, `PYVERILOG_ONLY`, `HYBRID`) and `PipelineConfig` dataclass
-- [ ] T006 Create `pipeline/llm.py` — shared LLM wrapper: accepts `node, model, prompt, run_id`; logs `{node, model, tokens_in, tokens_out, latency_ms, run_id}`; implements exponential backoff (max 3 retries) for rate limits; sets `temperature=0`
-- [ ] T007 Create `pipeline/graph.py` — empty LangGraph graph with all node slots registered as pass-through stubs; verify graph compiles with `langgraph`
-- [ ] T008 [P] Create `tests/` directory structure: `unit/`, `integration/`, `fixtures/cmb/`, `fixtures/seq/`
-- [ ] T009 [P] Add 5 hand-picked CMB fixtures to `tests/fixtures/cmb/` (NL description + golden DUT `.v` for: `alu_1bit`, `mux2to1`, `half_adder`, `comparator_2bit`, `priority_encoder`)
-- [ ] T010 [P] Verify `iverilog --version` and `pyverilog` importable; add `scripts/check_env.sh`
+- [x] T001 Create `pyproject.toml` with dependencies: `langgraph`, `anthropic`, `pyverilog`, `jinja2`, `pytest`
+- [x] T002 Create `.env.example` with `ANTHROPIC_API_KEY=` placeholder (updated with all 4 provider options: Groq, Gemini, Ollama, Anthropic)
+- [x] T003 [P] Create `pipeline/__init__.py` and package skeleton (`nodes/`, `analysis/`, `standardiser/`, `eval/`)
+- [x] T004 Create `pipeline/state.py` — `GraphState` TypedDict matching CLAUDE.md §7 schema exactly (uses `Annotated[list, operator.add]` reducer for llm_calls to support parallel branch merging)
+- [x] T005 Create `pipeline/config.py` — `AblationMode` enum (`BASELINE`, `COMPILER_ONLY`, `PYVERILOG_ONLY`, `HYBRID`) and `PipelineConfig` dataclass
+- [x] T006 Create `pipeline/llm.py` — multi-provider LLM wrapper (Anthropic > compat/Groq > OpenAI); logs `{node, model, tokens_in, tokens_out, latency_ms, run_id}`; exponential backoff; temperature=0
+- [x] T007 Create `pipeline/graph.py` — LangGraph graph with all 10 nodes registered and all edges wired
+- [x] T008 [P] Create `tests/` directory structure: `unit/`, `integration/`, `fixtures/cmb/`, `fixtures/seq/`
+- [x] T009 [P] Add 5 hand-picked CMB fixtures to `tests/fixtures/cmb/` (`alu_1bit`, `mux2to1`, `half_adder`, `comparator_2bit`, `priority_encoder`) — all verified to compile with `iverilog -g2012`
+- [x] T010 [P] Verify `iverilog --version` and `pyverilog` importable; add `scripts/check_env.sh`
 
 **Checkpoint**: `python -m pipeline --help` works; `pytest tests/unit/` collects 0 tests without error.
 
@@ -36,34 +36,34 @@ description: "Task list for the LangGraph Verilog testbench pipeline"
 
 ### 2a — Prompt Templates
 
-- [ ] T011 [P] Create `prompts/classify_circuit.j2` — inputs: `nl_description`, `golden_dut`; instructs Haiku to output JSON `{"circuit_type": "CMB"|"SEQ"}`
-- [ ] T012 [P] Create `prompts/extract_spec.j2` — inputs: `nl_description`, `golden_dut`; instructs Sonnet to output JSON spec `{ports, behaviour, timing}`
-- [ ] T013 [P] Create `prompts/gen_scenarios.j2` — inputs: `spec`; instructs Haiku to output list of named test scenarios `[{name, inputs, expected}]`
-- [ ] T014 [P] Create `prompts/gen_driver.j2` — inputs: `spec`, `scenarios`, `module_name`, `golden_dut`; instructs Sonnet to output Verilog testbench driver
-- [ ] T015 [P] Create `prompts/gen_checker.j2` — inputs: `spec`, `scenarios`, `module_name`; instructs Sonnet to output Python checker script
-- [ ] T016 [P] Create `prompts/gen_mutant.j2` — inputs: `golden_dut`, `module_name`; instructs Haiku to output a single-line fault-injected Verilog mutant
+- [x] T011 [P] Create `prompts/classify_circuit.j2` — inputs: `nl_description`, `golden_dut`; instructs Haiku to output JSON `{"circuit_type": "CMB"|"SEQ"}`
+- [x] T012 [P] Create `prompts/extract_spec.j2` — inputs: `nl_description`, `golden_dut`; instructs Sonnet to output JSON spec `{ports, behaviour, timing}`
+- [x] T013 [P] Create `prompts/gen_scenarios.j2` — inputs: `spec`; instructs Haiku to output list of named test scenarios `[{name, inputs, expected}]` (added STRICT RULES prohibiting X/Z and out-of-range values)
+- [x] T014 [P] Create `prompts/gen_driver.j2` — inputs: `spec`, `scenarios`, `module_name`, `golden_dut`; instructs Sonnet to output Verilog testbench driver (added PASS:/FAIL: marker requirements)
+- [x] T015 [P] Create `prompts/gen_checker.j2` — inputs: `spec`, `scenarios`, `module_name`; instructs Sonnet to output Python checker script
+- [x] T016 [P] Create `prompts/gen_mutant.j2` — inputs: `golden_dut`, `module_name`; instructs Haiku to output a single-line fault-injected Verilog mutant
 
 ### 2b — Node Implementations
 
-- [ ] T017 Create `pipeline/nodes/classify.py` — calls `llm_call()` with Haiku + `classify_circuit.j2`; writes `circuit_type` to state; RQ: RQ1
-- [ ] T018 Create `pipeline/nodes/extract_spec.py` — calls `llm_call()` with Sonnet + `extract_spec.j2`; writes `spec` dict to state
-- [ ] T019 Create `pipeline/nodes/gen_scenarios.py` — calls `llm_call()` with Haiku + `gen_scenarios.j2`; writes `scenarios` list to state
-- [ ] T020 [P] Create `pipeline/nodes/gen_driver.py` — calls `llm_call()` with Sonnet + `gen_driver.j2`; writes `driver_rtl` to state
-- [ ] T021 [P] Create `pipeline/nodes/gen_checker.py` — calls `llm_call()` with Sonnet + `gen_checker.j2`; writes `checker_py` to state
-- [ ] T022 Wire parallel branches in `pipeline/graph.py`: gen_driver and gen_checker run in parallel after gen_scenarios
+- [x] T017 Create `pipeline/nodes/classify.py` — calls `llm_call()` with Haiku + `classify_circuit.j2`; writes `circuit_type` to state; keyword fallback on JSON parse error
+- [x] T018 Create `pipeline/nodes/extract_spec.py` — calls `llm_call()` with Sonnet + `extract_spec.j2`; writes `spec` dict to state
+- [x] T019 Create `pipeline/nodes/gen_scenarios.py` — calls `llm_call()` with Haiku + `gen_scenarios.j2`; writes `scenarios` list to state
+- [x] T020 [P] Create `pipeline/nodes/gen_driver.py` — calls `llm_call()` with Sonnet + `gen_driver.j2` (max_tokens=8192); includes error_report from state for repair iterations
+- [x] T021 [P] Create `pipeline/nodes/gen_checker.py` — calls `llm_call()` with Sonnet + `gen_checker.j2`; extracts Python code block
+- [x] T022 Wire parallel branches in `pipeline/graph.py`: gen_driver and gen_checker run in parallel after gen_scenarios
 
 ### 2c — Evaluation
 
-- [ ] T023 Create `pipeline/eval/icarus.py` — `compile_tb(driver_rtl, dut_rtl) -> (bool, str)` and `simulate_tb(compiled_path, timeout_s=30) -> (bool, str)`; handles subprocess timeout; writes `eval0_pass`, `eval1_pass` to state
-- [ ] T024 Create `pipeline/eval/mutant_gen.py` — calls `llm_call()` with Haiku + `gen_mutant.j2`; generates N mutant DUTs; writes `mutant_duts` to state
-- [ ] T025 Add Eval2 logic to `pipeline/eval/icarus.py`: run TB against each mutant DUT; compute `eval2_pass_rate`
-- [ ] T026 Create `pipeline/nodes/evaluate.py` — orchestrates Eval0 → Eval1 → (optionally) Eval2; writes all eval fields to state
+- [x] T023 Create `pipeline/eval/icarus.py` — `compile_tb(driver_rtl, dut_rtl) -> (bool, str, str)` and `simulate_tb(compiled_path, timeout_s=30) -> (bool, str)`; handles subprocess timeout; failure detection uses `re.search(r'\bFAIL\s*:', output)` to avoid false positives
+- [x] T024 Create `pipeline/eval/mutant_gen.py` — calls `llm_call()` with Haiku + `gen_mutant.j2`; generates N mutant DUTs
+- [x] T025 Add Eval2 logic to `pipeline/eval/icarus.py`: run TB against each mutant DUT; skip mutants that don't compile (invalid, not caught); compute `eval2_pass_rate`
+- [x] T026 Create `pipeline/nodes/evaluate.py` — orchestrates Eval0 → Eval1 → Eval2; writes all eval fields + debug fields to state
 
 ### 2d — Results Logging
 
-- [ ] T027 Create `pipeline/nodes/evaluate.py` result-serialisation: write `RunResult` JSON to `results/<run_id>.json` after every run
+- [x] T027 Create `pipeline/nodes/evaluate.py` result-serialisation: write `RunResult` JSON to `results/<run_id>.json` after every run (includes debug fields: driver_rtl, compiler_output, sim_output when Eval0/Eval1 fails)
 
-**Checkpoint**: Run `scripts/run_smoke.sh` on 5 CMB fixtures → Eval0 ≥ 80%, Eval1 ≥ 50%. Every run produces a `results/<run_id>.json` with `llm_calls` populated.
+**Checkpoint**: ✅ PASSED (2026-06-24) — Eval0 5/5=100%, Eval1 4/5=80%, Eval2 4/4=100%. All runs produce `results/<run_id>.json` with `llm_calls` populated. One Eval1 failure (priority_encoder) is a prompt/hallucination issue — repair loop (Phase 4) will address.
 
 ---
 
@@ -159,8 +159,8 @@ description: "Task list for the LangGraph Verilog testbench pipeline"
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T054 [P] Add `__main__.py` CLI entry point: `python -m pipeline run --module <name> --mode hybrid`
-- [ ] T055 [P] Write `scripts/run_smoke.sh` for fast 5-module CMB validation
+- [x] T054 [P] Add `__main__.py` CLI entry point: `python -m pipeline run --module <name> --mode hybrid` (supports VerilogEval exact/partial match + fixture fallback)
+- [x] T055 [P] Write `scripts/run_smoke.sh` for fast 5-module CMB validation
 - [ ] T056 Add `PROGRESS.md` updates at each phase checkpoint
 - [ ] T057 [P] Run `pytest` full suite and fix all failures
 - [ ] T058 Add `results/` to `.gitignore`
