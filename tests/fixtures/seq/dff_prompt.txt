@@ -1,0 +1,9 @@
+Implement a module named dff — a positive-edge-triggered D flip-flop.
+
+Interface (all single-bit unless noted):
+  - input  clk  (clock)
+  - input  d    (data in)
+  - output q    (registered output)
+
+On every rising edge of clk, q takes the value of d. q holds its value between
+clock edges. This is a sequential circuit.

@@ -149,9 +149,13 @@ def should_repair_after_eval(state: GraphState, mode: AblationMode) -> str:
 
 
 def after_repair(state: GraphState) -> str:
-    """After a repair attempt: continue the loop by re-analysing, or stop."""
+    """After a repair attempt: continue the loop by re-analysing, or stop.
+    A repaired SEQ testbench is re-standardised (outputs re-made observable)
+    before static analysis; CMB goes straight to analysis."""
     if state.get("oscillation_detected", False):
         return "evaluate"
     if state.get("repair_iter", 0) > state.get("max_repair_iter", 3):
         return "evaluate"
+    if state.get("circuit_type") == "SEQ":
+        return "standardise"
     return "pyverilog_analysis"

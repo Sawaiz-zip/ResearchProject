@@ -78,6 +78,39 @@ _CANNED_BY_NODE = {
 }
 
 
+# ── Sequential (SEQ) canned responses ─────────────────────────────────────────
+_CANNED_SEQ_DUT = (
+    "module dff(input clk, input d, output reg q);\n"
+    "  always @(posedge clk) q <= d;\n"
+    "endmodule\n"
+)
+# Driver that instantiates the DUT but does NOT observe q and does NOT toggle clk,
+# so the standardiser visibly acts (inserts $monitor + clock).
+_CANNED_SEQ_DRIVER = (
+    "module testbench;\n"
+    "  reg clk, d; wire q;\n"
+    "  dff uut(.clk(clk), .d(d), .q(q));\n"
+    "  initial begin clk=0; d=1; #10; d=0; #10; $finish; end\n"
+    "endmodule\n"
+)
+_CANNED_SEQ_SPEC = (
+    '{"ports": {"inputs": [{"name":"clk","width":1},{"name":"d","width":1}],'
+    '"outputs": [{"name":"q","width":1}], "clock": "clk", "reset": null},'
+    '"behaviour": "d flip-flop", "timing": "synchronous", "edge": "posedge"}'
+)
+_CANNED_SEQ = {
+    "classify": '{"circuit_type": "SEQ"}',
+    "gen_dut": _CANNED_SEQ_DUT,
+    "extract_spec": _CANNED_SEQ_SPEC,
+    "gen_scenarios": '[{"name":"load1","inputs":{"d":1},"expected":{"q":1}}]',
+    "gen_driver": _CANNED_SEQ_DRIVER,
+    "gen_checker": "def check(o):\n    return True\n",
+    "gen_mutant": _CANNED_SEQ_DUT.replace("q <= d", "q <= ~d"),
+    "error_reasoner": "[]",
+    "repair": _CANNED_SEQ_DRIVER,
+}
+
+
 def _make_fake_llm(overrides=None):
     responses = dict(_CANNED_BY_NODE)
     if overrides:
@@ -107,6 +140,18 @@ def fake_llm(monkeypatch):
     """Patch llm_call in every node module with canned, offline responses."""
     import importlib
     fake = _make_fake_llm()
+    for mod_name in _LLM_NODE_MODULES:
+        mod = importlib.import_module(mod_name)
+        monkeypatch.setattr(mod, "llm_call", fake, raising=True)
+    return fake
+
+
+@pytest.fixture
+def fake_llm_seq(monkeypatch):
+    """Install SEQ-coherent canned responses (clocked DUT, spec with a clock, and a
+    driver missing $monitor so the standardiser acts)."""
+    import importlib
+    fake = _make_fake_llm(_CANNED_SEQ)
     for mod_name in _LLM_NODE_MODULES:
         mod = importlib.import_module(mod_name)
         monkeypatch.setattr(mod, "llm_call", fake, raising=True)

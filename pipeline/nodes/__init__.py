@@ -4,6 +4,7 @@ from pipeline.nodes.extract_spec import extract_spec_node
 from pipeline.nodes.gen_scenarios import gen_scenarios_node
 from pipeline.nodes.gen_driver import gen_driver_node
 from pipeline.nodes.gen_checker import gen_checker_node
+from pipeline.nodes.merge_generation import merge_generation_node
 from pipeline.nodes.standardise import standardise_node
 from pipeline.nodes.pyverilog_analysis import pyverilog_analysis_node
 from pipeline.nodes.error_reasoner import error_reasoner_node
@@ -17,6 +18,7 @@ __all__ = [
     "gen_scenarios_node",
     "gen_driver_node",
     "gen_checker_node",
+    "merge_generation_node",
     "standardise_node",
     "pyverilog_analysis_node",
     "error_reasoner_node",

@@ -14,7 +14,8 @@
 | Phase 1 — Generation (Wks 3–6) | ✅ Done | CMB pipeline end-to-end; smoke test PASSED (Eval0 5/5, Eval1 4/5, Eval2 4/4) |
 | Phase 2 — Pyverilog (Wks 5–9) | ✅ Done | pyverilog_runner + verible fallback + error_reasoner; 17/17 unit tests pass |
 | Feature 003 — DUT-gen + temp + results | ✅ Done | gen_dut node (description→DUT); configurable temperature (Constitution v1.1.0); human-readable run summary; offline test suite 36 pass / 1 live-skip |
-| Phase 3 — Repair loop (Wks 10–13) | ✅ Done | repair_node + 3-source feedback (static/compile/sim); 4 ablation modes distinct; oscillation + exhaustion termination; 49 tests pass. SEQ support still pending. |
+| Phase 3 — Repair loop (Wks 10–13) | ✅ Done | repair_node + 3-source feedback (static/compile/sim); 4 ablation modes distinct; oscillation + exhaustion termination. |
+| Phase 3b — SEQ support | ✅ Done | Deterministic $monitor/clock standardiser (Python-only, idempotent); merge_generation fan-in barrier; SEQ→standardise routing (CMB skips); dff/counter/shift_register fixtures; 60 tests pass. |
 | Phase 4 — Evaluation (Wks 14–16) | ⚪ Not started | |
 | Phase 5 — Writing (Wks 17–20) | ⚪ Not started | Exposé already done |
 
@@ -66,7 +67,13 @@ Legend: ✅ done · 🟢 on track · 🟡 partial · 🔴 blocked · ⚪ not sta
 
 ## 🔄 In Progress
 
-Nothing actively in progress — Feature 003 + Phase 3 repair loop complete. Remaining: SEQ support (standardiser + fixtures), then evaluation.
+Nothing actively in progress — Features 003, 004 (repair), 005 (SEQ) complete. Remaining: full ablation evaluation (Phase 4).
+
+### Feature 005 — SEQ Support (spec `005-seq-support`)
+- **Deterministic standardiser** (`pipeline/standardiser/fdisplay_inserter.py`): Python-only, no LLM. Inserts a `$monitor` covering any unobserved DUT outputs and a clock toggle when a declared clock isn't driven; idempotent via a `// [standardised]` marker; fail-safe (returns input unchanged on any error). Satisfies Constitution Principle VI. `standardise_node` now calls it.
+- **Graph**: new `merge_generation` no-op fan-in barrier — `gen_driver`+`gen_checker` → `merge_generation` → conditional `route_after_generation` → `standardise` (SEQ) or `pyverilog_analysis` (CMB). `after_repair` re-routes repaired SEQ testbenches through `standardise`. No LangGraph deadlock (verified by test).
+- **Fixtures**: `tests/fixtures/seq/{dff,counter_4bit,shift_register}` (_prompt.txt + _ref.v), all compile under iverilog v13.
+- **Tests**: `test_fdisplay_inserter.py` (insertion, idempotency, targeting, no-op, fail-safe, no DUT emit) + `test_seq_routing.py` (SEQ→standardise, CMB skips, no deadlock) — offline. One live SEQ test marked `live`. **60 passed, 3 skipped.** CMB + repair paths unaffected (regression green).
 
 ### Feature 004 — Repair Loop (spec `004-repair-loop`)
 - **repair_node implemented**: regenerates the testbench from structured error feedback via `repair_driver.j2` (Sonnet), logged as node `repair`. Oscillation detection = same error signature recurring OR regenerated testbench identical to previous. Increments `repair_iter`, appends a `repair_history` entry (iteration, feedback_source, tokens).

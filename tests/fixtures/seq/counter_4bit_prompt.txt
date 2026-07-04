@@ -1,0 +1,10 @@
+Implement a module named counter_4bit — a synchronous 4-bit up counter with
+synchronous reset.
+
+Interface:
+  - input  clk        (clock)
+  - input  rst        (synchronous reset, active high)
+  - output out (4 bits)
+
+On every rising edge of clk: if rst is high, out is set to 0; otherwise out
+increments by 1 (wrapping from 15 back to 0). This is a sequential circuit.

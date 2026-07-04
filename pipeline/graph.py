@@ -15,6 +15,7 @@ from pipeline.nodes import (
     gen_scenarios_node,
     gen_driver_node,
     gen_checker_node,
+    merge_generation_node,
     standardise_node,
     pyverilog_analysis_node,
     error_reasoner_node,
@@ -26,6 +27,14 @@ from pipeline.nodes.repair import (
     should_repair_after_eval,
     after_repair,
 )
+
+
+def route_after_generation(state: GraphState) -> str:
+    """After driver+checker both complete: SEQ circuits pass through the
+    deterministic standardiser before static analysis; CMB circuits skip it."""
+    if state.get("circuit_type") == "SEQ":
+        return "standardise"
+    return "pyverilog_analysis"
 
 
 def build_graph(config: PipelineConfig) -> StateGraph:
@@ -43,6 +52,7 @@ def build_graph(config: PipelineConfig) -> StateGraph:
     g.add_node("gen_scenarios",      gen_scenarios_node)
     g.add_node("gen_driver",         gen_driver_node)
     g.add_node("gen_checker",        gen_checker_node)
+    g.add_node("merge_generation",   merge_generation_node)  # fan-in barrier
     g.add_node("standardise",        standardise_node)       # SEQ only
     g.add_node("pyverilog_analysis", pyverilog_analysis_node)
     g.add_node("error_reasoner",     error_reasoner_node)
@@ -64,18 +74,18 @@ def build_graph(config: PipelineConfig) -> StateGraph:
     g.add_edge("gen_scenarios", "gen_driver")
     g.add_edge("gen_scenarios", "gen_checker")
 
-    # ── SEQ conditional: standardise before analysis ──────────────────────────
-    def route_after_parallel_join(state: GraphState) -> str:
-        """After driver+checker both complete, route SEQ through standardise."""
-        # TODO (Phase 3): LangGraph fan-in — both gen_driver and gen_checker must
-        # complete before this edge fires. Implement fan-in barrier here.
-        if state.get("circuit_type") == "SEQ":
-            return "standardise"
-        return "pyverilog_analysis"
+    # ── Fan-in barrier: both driver + checker complete before routing ─────────
+    # merge_generation runs only after BOTH gen_driver and gen_checker finish, so
+    # the SEQ-vs-CMB decision (and standardise) acts on the full testbench.
+    g.add_edge("gen_driver",  "merge_generation")
+    g.add_edge("gen_checker", "merge_generation")
 
-    # Placeholder: direct edge until fan-in is implemented in Phase 1/3
-    g.add_edge("gen_driver",  "pyverilog_analysis")
-    g.add_edge("gen_checker", "pyverilog_analysis")
+    # ── SEQ conditional: standardise before analysis (CMB skips it) ───────────
+    g.add_conditional_edges(
+        "merge_generation",
+        route_after_generation,
+        {"standardise": "standardise", "pyverilog_analysis": "pyverilog_analysis"},
+    )
 
     g.add_edge("standardise",        "pyverilog_analysis")
     g.add_edge("pyverilog_analysis", "error_reasoner")
@@ -88,12 +98,16 @@ def build_graph(config: PipelineConfig) -> StateGraph:
         {"repair": "repair", "evaluate": "evaluate"},
     )
 
-    # (2) After a repair: re-analyse the regenerated testbench, or stop (oscillation
-    #     / budget exhausted) by going straight to evaluate for finalisation.
+    # (2) After a repair: re-analyse the regenerated testbench (SEQ re-standardises
+    #     first), or stop (oscillation / budget exhausted) by going to evaluate.
     g.add_conditional_edges(
         "repair",
         after_repair,
-        {"pyverilog_analysis": "pyverilog_analysis", "evaluate": "evaluate"},
+        {
+            "standardise": "standardise",
+            "pyverilog_analysis": "pyverilog_analysis",
+            "evaluate": "evaluate",
+        },
     )
 
     # (3) After evaluation: COMPILER_ONLY repairs compile failures; HYBRID repairs

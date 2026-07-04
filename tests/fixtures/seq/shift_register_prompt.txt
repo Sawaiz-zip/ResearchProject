@@ -1,0 +1,12 @@
+Implement a module named shift_register — a 4-bit serial-in, parallel-out shift
+register with synchronous reset.
+
+Interface:
+  - input  clk        (clock)
+  - input  rst        (synchronous reset, active high)
+  - input  in         (serial data in)
+  - output out (4 bits, parallel out)
+
+On every rising edge of clk: if rst is high, out is set to 0; otherwise the
+register shifts left by one, shifting `in` into the least-significant bit
+(out <= {out[2:0], in}). This is a sequential circuit.
