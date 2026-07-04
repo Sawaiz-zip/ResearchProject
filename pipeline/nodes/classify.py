@@ -5,6 +5,7 @@ Model: Haiku (binary output — cheap).
 """
 
 import json
+import time
 
 from pipeline.config import PipelineConfig
 from pipeline.llm import extract_json, llm_call, render_prompt
@@ -13,6 +14,9 @@ from pipeline.state import GraphState
 
 def classify_node(state: GraphState) -> dict:
     cfg = PipelineConfig()
+    # Stamp the run start at the entry node (unless the caller already set it),
+    # so evaluate can report true end-to-end wall time across the repair loop.
+    started_at = state.get("run_started_at") or time.monotonic()
     prompt = render_prompt(
         "classify_circuit.j2",
         nl_description=state["nl_description"],
@@ -35,5 +39,6 @@ def classify_node(state: GraphState) -> dict:
 
     return {
         "circuit_type": circuit_type,
+        "run_started_at": started_at,
         "llm_calls": [log],
     }

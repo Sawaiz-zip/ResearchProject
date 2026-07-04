@@ -50,6 +50,8 @@ class GraphState(TypedDict):
 
     # ── Telemetry ────────────────────────────────────────────────────────────
     run_id: str
+    run_started_at: float    # time.monotonic() at run entry — for end-to-end wall time
+    mode: str                # ablation mode for this run (for the evaluation harness)
     # Annotated with operator.add so parallel branches (gen_driver, gen_checker)
     # each append their log entry without overwriting each other's.
     llm_calls: Annotated[list[dict], operator.add]

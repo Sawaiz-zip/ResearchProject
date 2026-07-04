@@ -155,6 +155,8 @@ def main() -> None:
         "failure_stage": None,
         "final_status": "failed_compile",
         "run_id": run_id,
+        "run_started_at": __import__("time").monotonic(),
+        "mode": mode.value,
         "llm_calls": [],
     }
 

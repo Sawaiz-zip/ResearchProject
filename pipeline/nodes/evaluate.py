@@ -165,9 +165,15 @@ def _write_result(state: GraphState, updates: dict, t_start: float) -> None:
     scenario_results = updates.get("scenario_results") or []
     scenarios_passed = sum(1 for s in scenario_results if s.get("passed"))
 
+    # End-to-end wall time: from run entry (classify) to now, covering all repair
+    # iterations. Falls back to this node's local start if the stamp is absent.
+    run_started = state.get("run_started_at") or t_start
+    wall_clock_ms = int((time.monotonic() - run_started) * 1000)
+
     result = {
         "run_id": run_id,
         "module_name": state.get("module_name", ""),
+        "mode": state.get("mode", ""),
         "circuit_type": state.get("circuit_type", ""),
         "nl_description": state.get("nl_description", ""),
         "repair_iter": state.get("repair_iter", 0),
@@ -185,7 +191,7 @@ def _write_result(state: GraphState, updates: dict, t_start: float) -> None:
         "tokens_in_total": tokens_in_total,
         "tokens_out_total": tokens_out_total,
         "llm_calls": all_llm_calls,
-        "wall_clock_ms": int((time.monotonic() - t_start) * 1000),
+        "wall_clock_ms": wall_clock_ms,
         # Generated DUT (the artifact produced from the description)
         "dut_rtl": state.get("dut_rtl", ""),
         # Debug fields — present when Eval0/Eval1 fails
