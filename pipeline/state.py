@@ -6,11 +6,14 @@ class GraphState(TypedDict):
     # ── Inputs ──────────────────────────────────────────────────────────────
     nl_description: str
     module_name: str
-    golden_dut: str          # Verilog source of the DUT
+    # golden_dut is OPTIONAL (may be "") — used ONLY at evaluation time as a
+    # benchmark reference. Generation never depends on it; it reads dut_rtl.
+    golden_dut: str          # optional reference DUT, eval-only
     mutant_duts: list[str]   # for Eval2
 
     # ── Stage outputs ────────────────────────────────────────────────────────
     circuit_type: Literal["CMB", "SEQ"]
+    dut_rtl: str                  # LLM-generated DUT (gen_dut node) — used downstream
     spec: dict                    # JSON spec: {ports, behaviour, timing}
     scenarios: list[dict]         # [{name, inputs, expected}]
     driver_rtl: str               # generated Verilog testbench
@@ -18,11 +21,17 @@ class GraphState(TypedDict):
     pyverilog_report: dict        # AST + dataflow + port-binding summary
     error_report: list[dict]      # [{type, signal, line, suggested_fix, severity}]
     last_error_report: list[dict] # for oscillation detection
+    scenario_results: list[dict]  # [{name, passed}] parsed from sim_output
+    eval_dut_source: Literal["golden", "generated"]  # which DUT evaluate used
 
     # ── Loop control ─────────────────────────────────────────────────────────
     repair_iter: int
     max_repair_iter: int
     oscillation_detected: bool
+    last_repair_signature: str    # error signature of previous repair (oscillation)
+    feedback_source: Literal["static", "compile", "simulation", ""]
+    # One entry per repair iteration; reducer-appended across the loop.
+    repair_history: Annotated[list[dict], operator.add]
 
     # ── Evaluation ───────────────────────────────────────────────────────────
     eval0_pass: bool

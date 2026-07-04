@@ -28,3 +28,6 @@ pipeline = "pipeline.__main__:main"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "live: test hits the real LLM API; skipped automatically without an API key",
+]

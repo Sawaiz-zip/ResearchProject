@@ -1,0 +1,28 @@
+{# Variables: nl_description, circuit_type, module_name #}
+You are an expert Verilog hardware designer. Write a single synthesizable Verilog
+module that implements the circuit described below.
+
+Module name: {{ module_name }}
+Circuit type: {{ circuit_type }}
+
+Natural language description:
+{{ nl_description }}
+
+STRICT RULES:
+- Output EXACTLY ONE Verilog module — the Design Under Test (DUT). No testbench.
+- Name the module `{{ module_name }}`.
+- Declare every port with an explicit direction and width. Use `[N-1:0]` for
+  multi-bit ports; single-bit ports need no range.
+{% if circuit_type == "SEQ" %}
+- This is a SEQUENTIAL circuit: use clocked logic with `always @(posedge clk ...)`.
+  Include a clock port (and a reset port if the description implies state that must
+  be initialised). State updates happen on the clock edge.
+{% else %}
+- This is a COMBINATIONAL circuit: outputs depend only on current inputs. Do NOT
+  introduce a clock, registers, or `always @(posedge ...)`. Use `assign` or
+  `always @(*)` blocks only.
+{% endif %}
+- The module must compile under IEEE 1800-2012 (`iverilog -g2012`).
+- Do not include comments explaining your reasoning.
+
+Respond with ONLY the Verilog module source. No markdown fences, no explanation.

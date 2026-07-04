@@ -12,12 +12,13 @@ from pipeline.state import GraphState
 
 def gen_driver_node(state: GraphState) -> dict:
     cfg = PipelineConfig()
+    dut = state.get("dut_rtl") or state.get("golden_dut", "")
     prompt = render_prompt(
         "gen_driver.j2",
         spec=state["spec"],
         scenarios=state["scenarios"],
         module_name=state["module_name"],
-        golden_dut=state["golden_dut"],
+        golden_dut=dut,
         error_report=state.get("error_report") or [],
     )
     text, log = llm_call(

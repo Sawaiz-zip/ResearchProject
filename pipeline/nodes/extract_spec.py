@@ -12,10 +12,13 @@ from pipeline.state import GraphState
 
 def extract_spec_node(state: GraphState) -> dict:
     cfg = PipelineConfig()
+    # Consume the generated DUT (fallback to a supplied golden DUT for legacy
+    # fixtures / benchmark inputs that pre-seed golden_dut).
+    dut = state.get("dut_rtl") or state.get("golden_dut", "")
     prompt = render_prompt(
         "extract_spec.j2",
         nl_description=state["nl_description"],
-        golden_dut=state["golden_dut"],
+        dut=dut,
         module_name=state["module_name"],
     )
     text, log = llm_call(

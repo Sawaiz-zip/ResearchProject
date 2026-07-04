@@ -5,6 +5,8 @@ RQ2 (localization quality), RQ3 (LLM reasoning quality).
 Model: Sonnet (strong model — reasoning about errors requires more capacity).
 """
 
+import json
+
 from pipeline.llm import extract_json, llm_call, render_prompt
 from pipeline.state import GraphState
 
@@ -43,8 +45,13 @@ def error_reasoner_node(state: GraphState) -> dict:
         run_id=state.get("run_id", ""),
     )
 
-    error_report = extract_json(text)
-    if not isinstance(error_report, list):
+    # Tolerant parse — robust to temperature>0 (Constitution IV). A malformed
+    # response must not abort the run.
+    try:
+        error_report = extract_json(text)
+        if not isinstance(error_report, list):
+            error_report = []
+    except (json.JSONDecodeError, AttributeError, ValueError):
         error_report = []
 
     return {

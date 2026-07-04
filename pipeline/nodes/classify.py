@@ -16,7 +16,6 @@ def classify_node(state: GraphState) -> dict:
     prompt = render_prompt(
         "classify_circuit.j2",
         nl_description=state["nl_description"],
-        golden_dut=state["golden_dut"],
     )
     text, log = llm_call(
         node="classify",

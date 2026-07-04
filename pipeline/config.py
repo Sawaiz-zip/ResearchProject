@@ -1,3 +1,4 @@
+import os
 from enum import Enum
 from dataclasses import dataclass, field
 
@@ -17,6 +18,11 @@ class PipelineConfig:
     num_mutants: int = 5           # for Eval2
     results_dir: str = "results"
     prompts_dir: str = "prompts"
+    # Sampling temperature (Constitution IV, amended v1.1.0): configurable,
+    # default 0.7, overridable via LLM_TEMPERATURE env. Not forced to 0.
+    default_temperature: float = field(
+        default_factory=lambda: float(os.environ.get("LLM_TEMPERATURE", "0.7"))
+    )
     # Models
     model_cheap: str = "claude-haiku-4-5-20251001"   # classify, scenarios, mutants
     model_strong: str = "claude-sonnet-4-6"          # spec, driver, checker, repair, reasoning

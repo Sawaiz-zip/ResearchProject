@@ -10,6 +10,7 @@ from pipeline.state import GraphState
 from pipeline.config import AblationMode, PipelineConfig
 from pipeline.nodes import (
     classify_node,
+    gen_dut_node,
     extract_spec_node,
     gen_scenarios_node,
     gen_driver_node,
@@ -20,7 +21,11 @@ from pipeline.nodes import (
     repair_node,
     evaluate_node,
 )
-from pipeline.nodes.repair import should_repair
+from pipeline.nodes.repair import (
+    should_repair,
+    should_repair_after_eval,
+    after_repair,
+)
 
 
 def build_graph(config: PipelineConfig) -> StateGraph:
@@ -33,6 +38,7 @@ def build_graph(config: PipelineConfig) -> StateGraph:
 
     # ── Register nodes ────────────────────────────────────────────────────────
     g.add_node("classify",           classify_node)
+    g.add_node("gen_dut",            gen_dut_node)
     g.add_node("extract_spec",       extract_spec_node)
     g.add_node("gen_scenarios",      gen_scenarios_node)
     g.add_node("gen_driver",         gen_driver_node)
@@ -47,7 +53,9 @@ def build_graph(config: PipelineConfig) -> StateGraph:
     g.set_entry_point("classify")
 
     # ── Sequential backbone ───────────────────────────────────────────────────
-    g.add_edge("classify",      "extract_spec")
+    # classify (description only) → gen_dut (synthesise DUT) → extract_spec
+    g.add_edge("classify",      "gen_dut")
+    g.add_edge("gen_dut",       "extract_spec")
     g.add_edge("extract_spec",  "gen_scenarios")
 
     # ── Parallel driver + checker branches ───────────────────────────────────
@@ -72,14 +80,33 @@ def build_graph(config: PipelineConfig) -> StateGraph:
     g.add_edge("standardise",        "pyverilog_analysis")
     g.add_edge("pyverilog_analysis", "error_reasoner")
 
-    # ── Repair conditional edge ───────────────────────────────────────────────
+    # ── Repair conditional edges ──────────────────────────────────────────────
+    # (1) After static analysis: PYVERILOG_ONLY / HYBRID may repair static errors.
     g.add_conditional_edges(
         "error_reasoner",
         lambda state: should_repair(state, config.mode),
         {"repair": "repair", "evaluate": "evaluate"},
     )
 
-    g.add_edge("repair",   "gen_driver")   # re-enter generation with error context
-    g.add_edge("evaluate", END)
+    # (2) After a repair: re-analyse the regenerated testbench, or stop (oscillation
+    #     / budget exhausted) by going straight to evaluate for finalisation.
+    g.add_conditional_edges(
+        "repair",
+        after_repair,
+        {"pyverilog_analysis": "pyverilog_analysis", "evaluate": "evaluate"},
+    )
+
+    # (3) After evaluation: COMPILER_ONLY repairs compile failures; HYBRID repairs
+    #     compile OR simulation failures; otherwise terminate.
+    g.add_conditional_edges(
+        "evaluate",
+        lambda state: should_repair_after_eval(state, config.mode),
+        {"repair": "repair", "END": END},
+    )
 
     return g.compile()
+
+
+def default_graph():
+    """No-arg entry point for LangGraph Studio (hybrid mode)."""
+    return build_graph(PipelineConfig(mode=AblationMode.HYBRID))

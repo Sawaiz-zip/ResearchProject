@@ -28,18 +28,23 @@ def load_module(
     """
     Return {"module_name", "nl_description", "golden_dut"}.
 
+    golden_dut may be "" — the pipeline generates its own DUT from the
+    description. A golden DUT, when present, is used at evaluation time only.
+
     Search order:
-      1. --nl / --dut overrides (both required together)
+      1. --nl override (description-only user flow); --dut optional (eval-only)
       2. data/verilog_eval/problems/<module_name>_prompt.txt + _ref.sv
          (also matches partial names like "notgate" → Prob005_notgate)
       3. tests/fixtures/cmb/<module_name>_prompt.txt + _ref.v
       4. tests/fixtures/seq/<module_name>_prompt.txt + _ref.v
     """
-    if nl_override and dut_override:
+    if nl_override:
         return {
             "module_name": module_name,
             "nl_description": pathlib.Path(nl_override).read_text(),
-            "golden_dut": pathlib.Path(dut_override).read_text(),
+            "golden_dut": (
+                pathlib.Path(dut_override).read_text() if dut_override else ""
+            ),
         }
 
     # Exact VerilogEval match (e.g. "Prob005_notgate")
@@ -128,6 +133,7 @@ def main() -> None:
         **module_data,
         "mutant_duts": [],
         "circuit_type": "CMB",
+        "dut_rtl": "",
         "spec": {},
         "scenarios": [],
         "driver_rtl": "",
@@ -135,9 +141,14 @@ def main() -> None:
         "pyverilog_report": {},
         "error_report": [],
         "last_error_report": [],
+        "scenario_results": [],
+        "eval_dut_source": "generated",
         "repair_iter": 0,
         "max_repair_iter": config.max_repair_iter,
         "oscillation_detected": False,
+        "last_repair_signature": "",
+        "feedback_source": "",
+        "repair_history": [],
         "eval0_pass": False,
         "eval1_pass": False,
         "eval2_pass_rate": 0.0,
@@ -151,13 +162,17 @@ def main() -> None:
     graph = build_graph(config)
     final_state = graph.invoke(initial_state)
 
-    status = final_state.get("final_status", "?")
-    e0 = final_state.get("eval0_pass", False)
-    e1 = final_state.get("eval1_pass", False)
-    e2 = final_state.get("eval2_pass_rate", 0.0)
-    n_calls = len(final_state.get("llm_calls") or [])
-    print(f"[pipeline] status={status}  eval0={e0}  eval1={e1}  eval2={e2:.2f}")
-    print(f"[pipeline] llm_calls={n_calls}  result=results/{run_id}.json")
+    # Prefer the persisted result (single source of truth) for the summary.
+    from pipeline.reporting import print_run_summary
+    result_path = _PROJECT_ROOT / "results" / f"{run_id}.json"
+    try:
+        import json
+        result = json.loads(result_path.read_text())
+    except (OSError, ValueError):
+        result = dict(final_state)  # fallback to in-memory state
+
+    print_run_summary(result)
+    print(f"[pipeline] result=results/{run_id}.json")
 
 
 if __name__ == "__main__":

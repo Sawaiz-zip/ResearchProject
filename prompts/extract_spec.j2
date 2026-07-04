@@ -1,4 +1,4 @@
-{# Variables: nl_description, golden_dut, module_name #}
+{# Variables: nl_description, dut, module_name #}
 You are a hardware verification expert. Extract a structured specification from the circuit description and DUT below.
 
 Module name: {{ module_name }}
@@ -6,9 +6,9 @@ Module name: {{ module_name }}
 Natural language description:
 {{ nl_description }}
 
-Golden DUT Verilog:
+DUT Verilog:
 ```verilog
-{{ golden_dut }}
+{{ dut }}
 ```
 
 Respond with ONLY a JSON object in this exact format:

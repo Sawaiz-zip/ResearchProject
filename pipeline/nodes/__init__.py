@@ -1,4 +1,5 @@
 from pipeline.nodes.classify import classify_node
+from pipeline.nodes.gen_dut import gen_dut_node
 from pipeline.nodes.extract_spec import extract_spec_node
 from pipeline.nodes.gen_scenarios import gen_scenarios_node
 from pipeline.nodes.gen_driver import gen_driver_node
@@ -11,6 +12,7 @@ from pipeline.nodes.evaluate import evaluate_node
 
 __all__ = [
     "classify_node",
+    "gen_dut_node",
     "extract_spec_node",
     "gen_scenarios_node",
     "gen_driver_node",

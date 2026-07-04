@@ -137,9 +137,25 @@ python -m pipeline --help
 
 ## Running
 
+The pipeline runs from a **natural-language description alone** — it generates
+its own DUT (Design Under Test) from the description, then generates and
+evaluates a testbench for it. A golden DUT is optional and used only for
+benchmark evaluation.
+
 ```bash
-# Run on a single module
-python -m pipeline run --module alu_1bit --mode hybrid
+# Description only (user flow): DUT is generated from the description
+python -m pipeline run --module half_adder --mode hybrid
+python -m pipeline run --nl my_circuit.txt --module my_circuit --mode hybrid
+
+# Benchmark mode: golden DUT supplied → used for evaluation only
+python -m pipeline run --module Prob005_notgate --mode hybrid   # from VerilogEval
+python -m pipeline run --nl desc.txt --dut golden.v --module m  # explicit golden DUT
+
+# Every run prints a human-readable summary (scenarios passed, Eval0/1/2,
+# tokens, wall time, status) and writes results/<run_id>.json.
+
+# Configurable sampling temperature (default 0.7; the pipeline is robust to >0)
+LLM_TEMPERATURE=0.9 python -m pipeline run --module half_adder --mode hybrid
 
 # Run the 5-module CMB smoke set
 bash scripts/run_smoke.sh hybrid
@@ -149,6 +165,13 @@ bash scripts/run_eval.sh hybrid
 
 # Aggregate results across ablation modes
 python scripts/aggregate_results.py
+```
+
+### Testing
+
+```bash
+pytest -q            # full suite, fully mocked — spends ZERO API tokens
+pytest -m live       # small live-API smoke test; auto-skips without an API key
 ```
 
 ---

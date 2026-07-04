@@ -3,6 +3,11 @@ Sync Impact Report (generated 2026-06-14):
 - constitution.md: filled from project context in CLAUDE.md (sections 5, 14, 15)
 - spec-template.md: no structural changes; mandatory sections align with research project
 - Dependent artifacts: all specs/plan/tasks files must comply with the principles below
+
+Amendment 2026-07-04 (v1.0.0 → v1.1.0):
+- Principle IV "Determinism at Temperature 0" → "Configurable Temperature". Temperature
+  is now configurable (default 0.7, LLM_TEMPERATURE env). Robustness moves to tolerant
+  parsing + retry. Driven by specs/003-dut-gen-and-results.
 -->
 
 # S6.ReKI.1 — LangGraph Verilog Testbench Pipeline Constitution
@@ -18,8 +23,8 @@ All LLM prompts are Jinja2 templates stored in `prompts/`. Inline f-string promp
 ### III. Full LLM Call Logging (NON-NEGOTIABLE)
 Every LLM call logs: `{node, model, tokens_in, tokens_out, latency_ms, run_id}`. Logging happens inside a shared wrapper — nodes never call the API directly. This enables per-node failure attribution and cost analysis (RQ4).
 
-### IV. Determinism at Temperature 0
-All code-generation and reasoning nodes run at `temperature=0`. Classification nodes also use `temperature=0`. No node may deviate without an explicit, documented justification in the node's docstring.
+### IV. Configurable Temperature (amended v1.1.0)
+LLM sampling temperature is **configurable**, not forced to zero. The default is `0.7`, overridable via the `LLM_TEMPERATURE` environment variable, and per-call overridable by any node. The pipeline must be robust to `temperature > 0`: robustness is guaranteed by **tolerant output parsing plus retry/fallback in every LLM-consuming node**, not by deterministic decoding. Every LLM call records the temperature actually used (Principle III). Rationale: the pipeline must be model-agnostic and provably robust to stochastic output — a core research goal — which deterministic decoding would make untestable. Reproducibility of *tests* is preserved by mocking the LLM (Principle IX), not by constraining the production temperature.
 
 ### V. CMB Before SEQ
 Combinational (CMB) circuit support is implemented and validated before any sequential (SEQ) circuit work begins. SEQ work may not be started until the CMB pipeline passes Eval0 + Eval1 on a smoke set of ≥5 modules.
@@ -69,4 +74,4 @@ Every pipeline node maps to at least one of RQ1–RQ4. New nodes added during de
 
 This constitution supersedes all other informal decisions. Amendments require: (a) updating this file, (b) bumping the version below, (c) updating any affected specs. All implementation tasks must pass a mental "constitution check" before coding begins. CLAUDE.md sections 5–10 are the authoritative source for research decisions; this constitution governs engineering practice only.
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-14 | **Last Amended**: 2026-06-14
+**Version**: 1.1.0 | **Ratified**: 2026-06-14 | **Last Amended**: 2026-07-04

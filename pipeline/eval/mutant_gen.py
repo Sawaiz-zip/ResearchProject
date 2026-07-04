@@ -10,21 +10,25 @@ from pipeline.state import GraphState
 
 
 def generate_mutants(
-    state: GraphState, n: int = 5
+    state: GraphState, n: int = 5, dut: str | None = None
 ) -> tuple[list[str], list[dict]]:
     """
-    Generate n mutant versions of state["golden_dut"] by asking Haiku to
+    Generate n mutant versions of the evaluation DUT by asking Haiku to
     introduce a single-line fault (flip operator, invert signal, swap constants).
+    `dut` is the DUT to mutate; when omitted it falls back to the generated DUT
+    (state["dut_rtl"]) and then to a supplied golden DUT.
     Returns (mutant_verilog_list, llm_call_logs).
     """
     cfg = PipelineConfig()
     mutants: list[str] = []
     logs: list[dict] = []
 
+    dut_src = dut or state.get("dut_rtl") or state.get("golden_dut", "")
+
     for _ in range(n):
         prompt = render_prompt(
             "gen_mutant.j2",
-            golden_dut=state["golden_dut"],
+            golden_dut=dut_src,
             module_name=state["module_name"],
         )
         text, log = llm_call(

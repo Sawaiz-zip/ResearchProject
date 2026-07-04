@@ -307,5 +307,6 @@ All 9 references verified correct as of session creation.
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+shell commands, and other important information, read the current plan:
+`specs/004-repair-loop/plan.md`
 <!-- SPECKIT END -->

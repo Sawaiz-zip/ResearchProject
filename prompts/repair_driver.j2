@@ -18,9 +18,12 @@ Current (broken) testbench:
 ```
 
 Requirements:
-- Fix every error listed above
-- Keep all test scenarios intact
-- Do NOT change the DUT module name or port names
-- Do NOT include the DUT module definition
+- Fix every error listed above.
+- For `compile_error`: make the testbench compile under iverilog -g2012 (check the `detail` field for the compiler message).
+- For `eval1_mismatch`: the DUT is the reference of record. Correct the EXPECTED values in the failing scenarios (listed in `failing_scenarios`) so they match what the DUT actually produces — do NOT weaken the checks or remove scenarios.
+- For port/sensitivity errors: fix the instantiation or timing without changing the DUT.
+- Keep all test scenarios intact and keep the PASS:/FAIL: markers.
+- Do NOT change the DUT module name or port names.
+- Do NOT include the DUT module definition.
 
 Respond with ONLY the corrected Verilog code, no explanation, no markdown fences.

@@ -2,7 +2,7 @@
 
 > **For future Claude sessions:** Update this file as work progresses. Read `CLAUDE.md` first for full project context.
 
-**Last updated:** 2026-06-24
+**Last updated:** 2026-07-04
 
 ---
 
@@ -13,7 +13,8 @@
 | Phase 0 — Setup (Wks 1–2) | ✅ Done | All lit review done; env set up; dataset downloaded; Pyverilog smoke test passed |
 | Phase 1 — Generation (Wks 3–6) | ✅ Done | CMB pipeline end-to-end; smoke test PASSED (Eval0 5/5, Eval1 4/5, Eval2 4/4) |
 | Phase 2 — Pyverilog (Wks 5–9) | ✅ Done | pyverilog_runner + verible fallback + error_reasoner; 17/17 unit tests pass |
-| Phase 3 — Repair + SEQ (Wks 10–13) | ⚪ Not started | |
+| Feature 003 — DUT-gen + temp + results | ✅ Done | gen_dut node (description→DUT); configurable temperature (Constitution v1.1.0); human-readable run summary; offline test suite 36 pass / 1 live-skip |
+| Phase 3 — Repair loop (Wks 10–13) | ✅ Done | repair_node + 3-source feedback (static/compile/sim); 4 ablation modes distinct; oscillation + exhaustion termination; 49 tests pass. SEQ support still pending. |
 | Phase 4 — Evaluation (Wks 14–16) | ⚪ Not started | |
 | Phase 5 — Writing (Wks 17–20) | ⚪ Not started | Exposé already done |
 
@@ -65,7 +66,23 @@ Legend: ✅ done · 🟢 on track · 🟡 partial · 🔴 blocked · ⚪ not sta
 
 ## 🔄 In Progress
 
-Nothing actively in progress — Phase 2 complete, Phase 3 not yet started.
+Nothing actively in progress — Feature 003 + Phase 3 repair loop complete. Remaining: SEQ support (standardiser + fixtures), then evaluation.
+
+### Feature 004 — Repair Loop (spec `004-repair-loop`)
+- **repair_node implemented**: regenerates the testbench from structured error feedback via `repair_driver.j2` (Sonnet), logged as node `repair`. Oscillation detection = same error signature recurring OR regenerated testbench identical to previous. Increments `repair_iter`, appends a `repair_history` entry (iteration, feedback_source, tokens).
+- **Three feedback sources**: Pyverilog static errors (via `error_reasoner`), compile failures (Eval0), simulation failures (Eval1). `evaluate_node` now writes `error_report` + `feedback_source` on Eval0/Eval1 failure so repair has context; DUT is treated as reference for Eval1 repairs.
+- **Four ablation modes now distinct**: BASELINE never repairs; COMPILER_ONLY on compile fails; PYVERILOG_ONLY on static errors; HYBRID on all. Enforced by `should_repair` (post static) + `should_repair_after_eval` (post eval) + `after_repair` (re-analyse vs stop).
+- **Graph rewiring**: `repair → after_repair → {pyverilog_analysis, evaluate}`; `evaluate → should_repair_after_eval → {repair, END}`. Confirmed no LangGraph fan-in deadlock on loop re-entry.
+- **Termination**: bounded by `max_repair_iter` (3); `final_status` resolves to `oscillated` / `exhausted_iters` / `success` / specific failure.
+- **State**: added `repair_history`, `last_repair_signature`, `feedback_source`. Result JSON + `print_run_summary` show the per-iteration repair breakdown.
+- **Tests**: `test_repair_node.py` (signature, oscillation, full mode matrix) + `test_repair_loop.py` (success-within-budget, BASELINE no-repair, oscillation→oscillated, exhaustion→exhausted_iters, COMPILER_ONLY compile-repair, no deadlock) — all offline. One live test marked `live`. **49 passed, 2 skipped.**
+
+### Feature 003 — DUT Generation, Configurable Temperature & Human-Readable Results (spec `003-dut-gen-and-results`)
+- **DUT generation**: pipeline now runs from a description alone. New `gen_dut` node (Sonnet) between classify and extract_spec synthesises the DUT; classify uses the description only. Graph: `classify → gen_dut → extract_spec → …`. All downstream nodes (extract_spec, gen_driver, pyverilog_analysis, evaluate, mutant_gen) consume `dut_rtl`.
+- **Golden DUT eval-only**: `golden_dut` optional; `evaluate_node` uses it only for Eval0/1/2 when present, else the generated DUT; `eval_dut_source` records which.
+- **Configurable temperature**: `llm_call(..., temperature=None)` → `LLM_TEMPERATURE` env → 0.7. Hardcoded `temperature=0` removed. Every call logs its temperature. **Constitution Principle IV amended → v1.1.0.** error_reasoner JSON parse hardened with fallback.
+- **Human-readable results**: result JSON now has `nl_description`, `dut_rtl`, `eval_dut_source`, `scenario_results`, `scenarios_passed/total`, `tokens_in/out_total`. New `pipeline/reporting.py` (`parse_scenarios`, `print_run_summary`) prints a summary each run.
+- **Tests**: `tests/conftest.py` `fake_llm`/`fake_llm_factory`/`mock_icarus` fixtures → whole suite offline (zero tokens). Full-flow mocked integration test covers CMB/SEQ, golden-vs-generated eval DUT, malformed-output robustness, should_repair routing. Live test marked `live`, auto-skips without a key. **36 passed, 1 skipped.**
 
 ---
 

@@ -94,6 +94,22 @@ def _resolve_model(model: str) -> str:
     return _OPENAI_MODEL_MAP.get(model, "gpt-4o-mini")
 
 
+def resolve_temperature(temperature: float | None = None) -> float:
+    """
+    Resolve the sampling temperature (Constitution IV, amended v1.1.0).
+    Precedence: explicit arg → LLM_TEMPERATURE env → 0.7 default.
+    """
+    if temperature is not None:
+        return float(temperature)
+    env = os.environ.get("LLM_TEMPERATURE")
+    if env is not None and env.strip() != "":
+        try:
+            return float(env)
+        except ValueError:
+            pass
+    return 0.7
+
+
 def _get_jinja(prompts_dir: str) -> Environment:
     global _jinja_env
     if _jinja_env is None:
@@ -142,18 +158,24 @@ def llm_call(
     run_id: str,
     max_tokens: int = 4096,
     max_retries: int = 3,
+    temperature: float | None = None,
 ) -> tuple[str, dict]:
     """
     Call the active LLM provider and return (response_text, log_entry).
     log_entry matches the llm_calls schema in GraphState.
+
+    temperature: configurable per Constitution IV (v1.1.0). None → LLM_TEMPERATURE
+    env → 0.7. The resolved value is applied to the call and recorded in the log.
     """
     provider = _provider()
     resolved = _resolve_model(model)
+    temp = resolve_temperature(temperature)
     log: dict = {
         "node": node,
         "model": resolved,
         "provider": provider,
         "run_id": run_id,
+        "temperature": temp,
         "tokens_in": 0,
         "tokens_out": 0,
         "latency_ms": 0,
@@ -161,7 +183,7 @@ def llm_call(
     }
 
     if provider == "anthropic":
-        return _call_anthropic(resolved, prompt, max_tokens, max_retries, log)
+        return _call_anthropic(resolved, prompt, max_tokens, max_retries, log, temp)
     else:
         # Both "compat" and "openai" use the OpenAI client
         base_url = os.environ.get("LLM_BASE_URL")      # None → default OpenAI URL
@@ -170,13 +192,14 @@ def llm_call(
             or os.environ.get("OPENAI_API_KEY")
         )
         return _call_openai_compat(resolved, prompt, max_tokens, max_retries, log,
-                                   api_key=api_key, base_url=base_url)
+                                   api_key=api_key, base_url=base_url, temperature=temp)
 
 
 # ── Anthropic ────────────────────────────────────────────────────────────────
 
 def _call_anthropic(
-    model: str, prompt: str, max_tokens: int, max_retries: int, log: dict
+    model: str, prompt: str, max_tokens: int, max_retries: int, log: dict,
+    temperature: float,
 ) -> tuple[str, dict]:
     import anthropic
 
@@ -187,7 +210,7 @@ def _call_anthropic(
             response = client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
-                temperature=0,
+                temperature=temperature,
                 messages=[{"role": "user", "content": prompt}],
             )
             log["tokens_in"] = response.usage.input_tokens
@@ -214,6 +237,7 @@ def _call_openai_compat(
     log: dict,
     api_key: str | None,
     base_url: str | None,
+    temperature: float,
 ) -> tuple[str, dict]:
     from openai import OpenAI, RateLimitError
 
@@ -229,7 +253,7 @@ def _call_openai_compat(
             response = client.chat.completions.create(
                 model=model,
                 max_tokens=max_tokens,
-                temperature=0,
+                temperature=temperature,
                 messages=[{"role": "user", "content": prompt}],
             )
             log["tokens_in"] = response.usage.prompt_tokens
