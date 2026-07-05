@@ -151,8 +151,12 @@ def evaluate_node(state: GraphState) -> dict:
 
 
 def _write_result(state: GraphState, updates: dict, t_start: float) -> None:
-    results_dir = _PROJECT_ROOT / "results"
-    results_dir.mkdir(exist_ok=True)
+    # The evaluation harness can redirect output (e.g. to a tmp dir in tests) via
+    # PIPELINE_RESULTS_DIR; default is the project results/ directory.
+    results_dir = pathlib.Path(
+        os.environ.get("PIPELINE_RESULTS_DIR") or (_PROJECT_ROOT / "results")
+    )
+    results_dir.mkdir(parents=True, exist_ok=True)
 
     run_id = state.get("run_id", "unknown")
     # Combine llm_calls already in state with any from this node (mutant gen)

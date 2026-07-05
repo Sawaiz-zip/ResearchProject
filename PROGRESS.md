@@ -16,7 +16,7 @@
 | Feature 003 — DUT-gen + temp + results | ✅ Done | gen_dut node (description→DUT); configurable temperature (Constitution v1.1.0); human-readable run summary; offline test suite 36 pass / 1 live-skip |
 | Phase 3 — Repair loop (Wks 10–13) | ✅ Done | repair_node + 3-source feedback (static/compile/sim); 4 ablation modes distinct; oscillation + exhaustion termination. |
 | Phase 3b — SEQ support | ✅ Done | Deterministic $monitor/clock standardiser (Python-only, idempotent); merge_generation fan-in barrier; SEQ→standardise routing (CMB skips); dff/counter/shift_register fixtures; 60 tests pass. |
-| Phase 4 — Evaluation (Wks 14–16) | ⚪ Not started | |
+| Phase 4 — Evaluation (Wks 14–16) | 🟡 Harness done | Batch runner + aggregator + budget guard built and tested; full sweep not yet run (token budget). |
 | Phase 5 — Writing (Wks 17–20) | ⚪ Not started | Exposé already done |
 
 Legend: ✅ done · 🟢 on track · 🟡 partial · 🔴 blocked · ⚪ not started
@@ -67,7 +67,15 @@ Legend: ✅ done · 🟢 on track · 🟡 partial · 🔴 blocked · ⚪ not sta
 
 ## 🔄 In Progress
 
-Nothing actively in progress — Features 003, 004 (repair), 005 (SEQ) complete. Remaining: full ablation evaluation (Phase 4).
+Features 003, 004 (repair), 005 (SEQ), 006 (eval harness) complete. Remaining: run the actual ablation sweep (token budget permitting) + optional Pyverilog precision/recall (FR-017).
+
+### Feature 006 — Evaluation Harness (spec `006-eval-harness`, branch `006-eval-harness`)
+- **Result tagging**: every result JSON now carries `mode` + `module_name`; `wall_clock_ms` fixed to measure the whole run (via `run_started_at` set at graph entry).
+- **Aggregator** (`pipeline/eval/aggregate.py`): groups by mode with newest-wins de-dup; per mode → Eval0/1/2 rates, mean repair iters, mean tokens in/out, mean wall time, mean scenarios, final-status distribution, and per-node failure attribution (counts + fractions). Writes `results/summary.json` + a human-readable table. Graceful on empty/malformed.
+- **Batch runner** (`pipeline/eval/harness.py`): `run_sweep(modules, modes, limit, opt_in)` with a **token-budget guard** — defaults to the 5 CMB fixtures, refuses > 24 runs without `--yes`, prints a run-count estimate, isolates per-run failures. Module presets: `cmb-fixtures`/`smoke`/`seq-fixtures`/`verilogeval[:N]`.
+- **CLI**: `scripts/run_eval.py` (estimate → guard → sweep → aggregate); `scripts/aggregate_results.py` now a thin wrapper. Results dir redirectable via `PIPELINE_RESULTS_DIR`.
+- **Tests**: `test_aggregate` (all figures on synthetic records, empty, malformed, de-dup, fractions sum to 1), `test_harness_guard` (estimate; refuses over-threshold with zero invocations; proceeds with limit/opt-in), `test_harness_smoke_mocked` (2-mode sweep → mode-tagged results → aggregate). **69 passed, 3 skipped.** Verified live: guard refuses a 624-run sweep with zero token spend.
+- **Not done**: the actual paid sweep, and Pyverilog error precision/recall (FR-017, follow-up).
 
 ### Feature 005 — SEQ Support (spec `005-seq-support`)
 - **Deterministic standardiser** (`pipeline/standardiser/fdisplay_inserter.py`): Python-only, no LLM. Inserts a `$monitor` covering any unobserved DUT outputs and a clock toggle when a declared clock isn't driven; idempotent via a `// [standardised]` marker; fail-safe (returns input unchanged on any error). Satisfies Constitution Principle VI. `standardise_node` now calls it.

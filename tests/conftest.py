@@ -192,8 +192,8 @@ def mock_icarus(monkeypatch):
                        lambda path, timeout_s=30: (True, "PASS: zero\nPASS: both\n"))
     monkeypatch.setattr(ev.icarus, "eval2",
                        lambda drv, muts, timeout_s=30: 1.0)
-    # skip the os.unlink on the fake compiled path
-    monkeypatch.setattr("os.path.exists", lambda p: False)
+    # The fake compiled path ("/tmp/fake.out") won't exist, so evaluate's cleanup
+    # (os.path.exists → unlink) is naturally a no-op — no global os patch needed.
 
 
 @pytest.fixture
@@ -221,5 +221,4 @@ def mock_icarus_flaky(monkeypatch):
     monkeypatch.setattr(ev.icarus, "compile_tb", _compile)
     monkeypatch.setattr(ev.icarus, "simulate_tb", _sim)
     monkeypatch.setattr(ev.icarus, "eval2", lambda drv, muts, timeout_s=30: 1.0)
-    monkeypatch.setattr("os.path.exists", lambda p: False)
     return ctl
