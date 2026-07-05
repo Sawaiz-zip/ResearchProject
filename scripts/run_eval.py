@@ -53,9 +53,16 @@ def main() -> None:
         sys.exit(2)
 
     print(f"[run_eval] completed {result['ran']} runs.")
+    if result.get("aborted"):
+        print(f"[run_eval] sweep aborted early ({result.get('reason')}) — "
+              f"aggregating the {result['ran']} runs that completed.")
+
     if not args.no_aggregate:
         summary = aggregate(args.results_dir)
         print_summary_table(summary)
+
+    if result.get("aborted"):
+        sys.exit(3)
 
 
 if __name__ == "__main__":

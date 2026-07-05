@@ -26,6 +26,17 @@ ALL_MODES = [
 ]
 
 
+def _is_daily_rate_limit(exc: Exception) -> bool:
+    """True if the exception is a rate-limit that names a *daily* token quota
+    (e.g. Groq's 'tokens per day (TPD)'). These don't reset in seconds, so the
+    whole sweep should abort rather than retry every remaining run."""
+    name = type(exc).__name__.lower()
+    msg = str(exc).lower()
+    is_rate = "ratelimit" in name or "rate limit" in msg or "429" in msg
+    is_daily = ("per day" in msg) or ("tpd" in msg) or ("tokens per day" in msg)
+    return is_rate and is_daily
+
+
 def estimate_runs(modules: list[str], modes: list, limit: int | None = None) -> int:
     """Number of (module, mode) runs a selection implies."""
     mods = modules[:limit] if limit else modules
@@ -145,8 +156,12 @@ def run_sweep(
     os.environ["PIPELINE_RESULTS_DIR"] = results_dir
     summaries: list[dict] = []
     ran = 0
+    aborted = False
+    reason = None
     try:
         for module in mods:
+            if aborted:
+                break
             try:
                 module_data = load_module(module, None, None)
             except FileNotFoundError as e:
@@ -163,7 +178,21 @@ def run_sweep(
                         "run_id": run_id, "module": module, "mode": mode.value,
                         "final_status": final.get("final_status"),
                     })
-                except Exception as exc:  # one bad run must not abort the sweep
+                except Exception as exc:
+                    # A daily token-quota rate limit will not clear during the
+                    # sweep — abort the whole run instead of failing every remaining
+                    # (module, mode) pair.
+                    if _is_daily_rate_limit(exc):
+                        reason = "daily_rate_limit"
+                        aborted = True
+                        print(
+                            f"[harness] ABORTED: daily API token budget exhausted "
+                            f"({exc}). Ran {ran} of {n} before stopping. Re-run once "
+                            f"the quota resets, or use a smaller selection / another "
+                            f"provider key."
+                        )
+                        break
+                    # Otherwise: one bad run must not abort the sweep.
                     ran += 1
                     summaries.append({
                         "run_id": run_id, "module": module, "mode": mode.value,
@@ -177,4 +206,5 @@ def run_sweep(
         else:
             os.environ["PIPELINE_RESULTS_DIR"] = prev_env
 
-    return {"ran": ran, "refused": False, "n": n, "results": summaries}
+    return {"ran": ran, "refused": False, "aborted": aborted, "reason": reason,
+            "n": n, "results": summaries}

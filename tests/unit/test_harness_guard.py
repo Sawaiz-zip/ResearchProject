@@ -2,9 +2,45 @@
 
 from pipeline.config import AblationMode
 from pipeline.eval import harness
-from pipeline.eval.harness import estimate_runs, run_sweep, SAFE_THRESHOLD
+from pipeline.eval.harness import (
+    estimate_runs, run_sweep, SAFE_THRESHOLD, _is_daily_rate_limit,
+)
 
 _MODES = [AblationMode.BASELINE, AblationMode.HYBRID]
+
+
+class _FakeRateLimitError(Exception):
+    pass
+
+
+def test_is_daily_rate_limit_detection():
+    daily = _FakeRateLimitError(
+        "Error code: 429 - Rate limit reached ... tokens per day (TPD): Limit 100000"
+    )
+    per_min = _FakeRateLimitError(
+        "Error code: 429 - Rate limit reached ... tokens per minute (TPM): Limit 6000"
+    )
+    assert _is_daily_rate_limit(daily) is True
+    assert _is_daily_rate_limit(per_min) is False
+    assert _is_daily_rate_limit(ValueError("some other error")) is False
+
+
+def test_sweep_aborts_on_daily_rate_limit(tmp_path):
+    calls = {"n": 0}
+
+    def boom(state, config):
+        calls["n"] += 1
+        raise _FakeRateLimitError(
+            "429 tokens per day (TPD): Limit 100000, Used 99999"
+        )
+
+    # 2 modules × 2 modes = 4 runs, but the daily limit should abort after the 1st.
+    result = run_sweep(["half_adder", "mux2to1"], _MODES, opt_in=True,
+                       results_dir=str(tmp_path), graph_invoke=boom)
+    assert result["aborted"] is True
+    assert result["reason"] == "daily_rate_limit"
+    assert calls["n"] == 1          # stopped immediately, did not grind through the rest
+    assert result["ran"] == 0
 
 
 def test_estimate_runs():

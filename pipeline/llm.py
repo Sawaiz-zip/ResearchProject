@@ -94,6 +94,13 @@ def _resolve_model(model: str) -> str:
     return _OPENAI_MODEL_MAP.get(model, "gpt-4o-mini")
 
 
+def _is_daily_rate_limit(exc: Exception) -> bool:
+    """A rate limit that names a *daily* token quota (e.g. 'tokens per day (TPD)').
+    Retrying within a run is futile — surface it immediately."""
+    msg = str(exc).lower()
+    return ("per day" in msg) or ("tpd" in msg) or ("tokens per day" in msg)
+
+
 def resolve_temperature(temperature: float | None = None) -> float:
     """
     Resolve the sampling temperature (Constitution IV, amended v1.1.0).
@@ -218,7 +225,9 @@ def _call_anthropic(
             log["latency_ms"] = int((time.monotonic() - t0) * 1000)
             return response.content[0].text, log
 
-        except anthropic.RateLimitError:
+        except anthropic.RateLimitError as e:
+            if _is_daily_rate_limit(e):
+                raise  # daily quota — retrying won't help
             log["rate_limit_retries"] += 1
             if attempt == max_retries - 1:
                 raise
@@ -261,7 +270,9 @@ def _call_openai_compat(
             log["latency_ms"] = int((time.monotonic() - t0) * 1000)
             return response.choices[0].message.content, log
 
-        except RateLimitError:
+        except RateLimitError as e:
+            if _is_daily_rate_limit(e):
+                raise  # daily quota — retrying won't help
             log["rate_limit_retries"] += 1
             if attempt == max_retries - 1:
                 raise
